@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A check needs only source read access; superseded PR runs can be canceled.
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  native:
+    runs-on: macos-14
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: swift --version
+      - run: bash -n scripts/build.sh scripts/release.sh
+      - run: swift test
+      - run: swift run RigiGallery --smoke-test
+      - run: swift run RigiGallery --screenshot "$RUNNER_TEMP/rigi-gallery.png"
+      - run: swift build -c release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rigi-gallery-macos
+          path: ${{ runner.temp }}/rigi-gallery.png
+          if-no-files-found: error
