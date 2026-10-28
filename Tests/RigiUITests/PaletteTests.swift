@@ -167,7 +167,7 @@ final class PaletteTests: XCTestCase {
 
     XCTAssertEqual(recorder.contents.count, 2)
     XCTAssertFalse(
-      recorder.contents[1].viewController === popoverContent.viewController,
+      recorder.contents[1].paletteViewController === popoverContent.paletteViewController,
       "A palette content factory must create distinct view controllers"
     )
     XCTAssertEqual(palette.presentation, .panel)
