@@ -8,6 +8,8 @@ import RigiUI
 @MainActor
 final class GalleryModel {
 
+    static let fontSizeRange = 1.0...288.0
+
     struct Specimen: Equatable {
         var family = "Helvetica"
         var size = 18.0
@@ -38,13 +40,12 @@ final class GalleryModel {
     func beginTryOn() { tryOnBase = specimen }
     func previewFamily(_ family: String) { specimen.family = family; onChange?() }
     /// Tear-off banks the attached browsing as the session's single undo step.
-    func bankTryOn() { finishTryOn(committing: true) }
-    func endTryOn(_ outcome: TryOnPopover.Outcome) { finishTryOn(committing: outcome == .commit) }
+    func bankTryOn() { endTryOn(.commit) }
 
-    private func finishTryOn(committing: Bool) {
+    func endTryOn(_ outcome: TryOnPopover.Outcome) {
         guard let base = tryOnBase else { return }
         tryOnBase = nil
-        if committing {
+        if outcome == .commit {
             guard specimen != base else { return }
             undo.registerUndo(withTarget: self) { $0.apply(base) }
         } else {
@@ -261,7 +262,9 @@ final class GalleryController: NSObject, NSWindowDelegate {
     }
 
     private func commitSizeText(_ text: String) {
-        guard let size = Double(text), size > 0 else { return syncSpecimen() }
+        guard let size = Double(text), GalleryModel.fontSizeRange.contains(size) else {
+            return syncSpecimen()
+        }
         model.edit { $0.size = size }
     }
 

@@ -54,7 +54,8 @@ final class PaletteTests: XCTestCase {
     drainClose(palette)
 
     let content = try XCTUnwrap(recorder.contents.first)
-    XCTAssertEqual(content.retargets.last, nil)
+    XCTAssertNotNil(content.retargets.first ?? nil)
+    XCTAssertNil(content.retargets.last ?? nil)
     XCTAssertEqual(content.dismissed, [.popover])
   }
 

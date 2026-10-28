@@ -26,6 +26,7 @@ final class PalettePanelTests: XCTestCase {
     )
 
     XCTAssertTrue(panel.isMovable)
+    XCTAssertTrue(chrome.acceptsFirstMouse(for: nil))
     XCTAssertIdentical(chrome.hitTest(onDragRegion), chrome)
     XCTAssertIdentical(chrome.hitTest(onCloseButton), closeButton)
     XCTAssertTrue(closeButton.acceptsFirstMouse(for: nil))

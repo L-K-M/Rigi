@@ -51,12 +51,6 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     // presentation internals part of the public API.
     var presentedPopover: NSPopover? { popover }
 
-    /// Settle a preview before its document closes or the host changes targets.
-    public func dismiss(_ outcome: Outcome) {
-        guard isActive else { return }
-        finish(outcome)
-    }
-
     public func present(from anchor: NSView, palette: TearOffPalette?,
                  items: [PickerItem], currentID: String?,
                  specimenFont: @escaping (PickerItem) -> NSFont,

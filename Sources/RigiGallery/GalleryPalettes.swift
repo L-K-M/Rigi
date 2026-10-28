@@ -133,7 +133,9 @@ final class InspectorContent: NSViewController, PaletteContent {
     // MARK: Edits (each a committed, undoable change on the model)
 
     private func commitSize(_ text: String) {
-        guard let model, let size = Double(text), size > 0 else { return sync() }
+        guard let model, let size = Double(text), GalleryModel.fontSizeRange.contains(size) else {
+            return sync()
+        }
         model.edit { $0.size = size }
     }
 

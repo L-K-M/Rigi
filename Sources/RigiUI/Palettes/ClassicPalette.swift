@@ -240,6 +240,8 @@ public final class PaletteChromeView: NSView {
 
     // MARK: - Mouse: title-bar dragging
 
+    public override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     /// Empty title-bar regions drag the panel; the close button, a real
     /// subview, keeps normal event handling on its own.
     public override func mouseDown(with event: NSEvent) {

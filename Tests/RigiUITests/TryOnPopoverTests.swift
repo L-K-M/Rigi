@@ -12,8 +12,13 @@ final class TryOnPopoverTests: XCTestCase {
         present(picker, from: anchor, onFinish: { outcomes.append($0) })
         XCTAssertTrue(picker.isActive)
 
-        picker.dismiss(.cancel)
-        picker.dismiss(.commit)
+        let popover = try XCTUnwrap(picker.presentedPopover)
+        let list = try XCTUnwrap(popover.contentViewController?.view.subviews
+            .compactMap { $0 as? PickerListView }.first)
+        _ = list.control(NSSearchField(), textView: NSTextView(),
+                         doCommandBy: #selector(NSResponder.cancelOperation(_:)))
+        _ = list.control(NSSearchField(), textView: NSTextView(),
+                         doCommandBy: #selector(NSResponder.insertNewline(_:)))
         drain(picker)
 
         XCTAssertEqual(outcomes.count, 1)

@@ -71,9 +71,12 @@ public final class ClassicPopUpButton: NSPopUpButton {
         let arrowWidth: CGFloat = 16
         ClassicChrome.drawStackedChevrons(cx: bounds.maxX - arrowWidth / 2,
                                          cy: bounds.midY, active: active)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
         let title = NSAttributedString(string: titleOfSelectedItem ?? "", attributes: [
             .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: ClassicChrome.titleColor(active)
+            .foregroundColor: ClassicChrome.titleColor(active),
+            .paragraphStyle: paragraph
         ])
         title.draw(in: NSRect(x: 8, y: ((bounds.height - title.size().height) / 2).rounded(),
                               width: max(0, bounds.width - arrowWidth - 12), height: title.size().height))

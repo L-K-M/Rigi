@@ -376,8 +376,8 @@ public final class ClassicSegmentedControl: NSControl {
 
 /// A pop-up with the classic look: gradient bezel, hairline-separated arrow well
 /// with stacked up/down chevrons, 11 pt title. The API mirrors the slice of
-/// NSPopUpButton the toolbar uses, so callers read the same. Subclasses can
-/// override `presentChoices()` to show something other than the item menu.
+/// NSPopUpButton the toolbar uses, so callers read the same. Use
+/// `ClassicChooserControl` to present custom content instead of an item menu.
 public class ClassicPopUp: NSControl {
 
     private let popMenu = NSMenu()
