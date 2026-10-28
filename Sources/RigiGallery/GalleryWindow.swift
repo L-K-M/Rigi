@@ -70,6 +70,9 @@ final class GalleryModel {
 @MainActor
 final class GalleryController: NSObject, NSWindowDelegate {
 
+    private static let initialSize = NSSize(width: 700, height: 470)
+    private static let minimumSize = NSSize(width: 640, height: 380)
+
     static let families = ["Helvetica", "Helvetica Neue", "Arial", "Futura",
                            "Gill Sans", "Palatino", "Times New Roman", "Georgia",
                            "American Typewriter", "Courier New", "Menlo", "Avenir Next"]
@@ -109,15 +112,18 @@ final class GalleryController: NSObject, NSWindowDelegate {
             target: { model },
             makeContent: { InspectorContent() })
         window = ClassicWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 700, height: 470),
+            contentRect: NSRect(origin: .zero, size: Self.initialSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
         super.init()
         window.title = "Rigi Gallery"
         window.appearance = NSAppearance(named: .aqua)
-        window.contentMinSize = NSSize(width: 640, height: 380)
         window.delegate = self
         buildContent()
+        // Install constraints before restoring the intended size; otherwise
+        // AppKit adopts the single-line specimen's compact fitting height.
+        window.contentMinSize = Self.minimumSize
+        window.setContentSize(Self.initialSize)
         wire()
         syncSpecimen()
         statusBar.message = Self.idleMessage
@@ -126,7 +132,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
     // MARK: Layout
 
     private func buildContent() {
-        let content = ClassicPanelView()
+        let content = ClassicPanelView(frame: NSRect(origin: .zero, size: Self.initialSize))
         window.contentView = content
 
         let bar = ClassicBarView(style: .toolbar)

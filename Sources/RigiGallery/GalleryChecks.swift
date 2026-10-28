@@ -43,6 +43,8 @@ enum GallerySmokeTest {
         window.layoutIfNeeded()
         check(window.isVisible, "window ordered front")
         check(window.contentView is ClassicPanelView, "panel surface")
+        check((window.contentView?.bounds.height ?? 0) >= window.contentMinSize.height,
+              "gallery retains its minimum content height")
         check(controller.toolbarStack.arrangedSubviews.count == 7, "toolbar controls")
         check(controller.statusBar.superview != nil, "status bar")
         check(controller.specimenLabel.attributedStringValue.length > 0, "specimen rendered")
