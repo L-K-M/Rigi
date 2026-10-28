@@ -2,10 +2,10 @@ import AppKit
 
 /// One app-global attached or floating presentation for a palette kind.
 @MainActor
-  public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
-    // Preserve the public raw name used by pre-Rigi SionKit observers.
+public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
+  // Preserve the public raw name used by pre-Rigi SionKit observers.
   public static let presentationDidChangeNotification = Notification.Name(
-    "RigiUIPalettePresentationDidChange"
+    "SionKitPalettePresentationDidChange"
   )
 
   public let kind: PaletteKind
