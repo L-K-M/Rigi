@@ -6,6 +6,11 @@ import XCTest
 @MainActor
 final class PaletteTests: XCTestCase {
 
+  func testLegacyNotificationNameRemainsCompatible() {
+    XCTAssertEqual(Palette.presentationDidChangeNotification.rawValue,
+                   "SionKitPalettePresentationDidChange")
+  }
+
   // MARK: - Typed retarget
 
   func testRetargetFeedsTheTypedTargetToThePresentedContent() throws {
