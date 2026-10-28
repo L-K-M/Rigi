@@ -42,7 +42,8 @@ enum GallerySmokeTest {
         settle()
         window.layoutIfNeeded()
         check(window.isVisible, "window ordered front")
-        check(window.contentView is ClassicPanelView, "panel surface")
+        check(window.contentView?.subviews.contains { $0 is ClassicPanelView } == true,
+              "panel surface")
         check((window.contentView?.bounds.height ?? 0) >= window.contentMinSize.height,
               "gallery retains its minimum content height")
         check(controller.toolbarStack.arrangedSubviews.count == 7, "toolbar controls")

@@ -132,9 +132,6 @@ final class GalleryController: NSObject, NSWindowDelegate {
     // MARK: Layout
 
     private func buildContent() {
-        let content = ClassicPanelView(frame: NSRect(origin: .zero, size: Self.initialSize))
-        window.contentView = content
-
         let bar = ClassicBarView(style: .toolbar)
         toolControl.segmentCount = 3
         for (index, label) in ["B", "I", "U"].enumerated() {
@@ -179,24 +176,8 @@ final class GalleryController: NSObject, NSWindowDelegate {
         specimenLabel.lineBreakMode = .byTruncatingTail
         insetBox.embed(specimenLabel)
 
-        for view in [bar, insetBox, statusBar] {
-            view.translatesAutoresizingMaskIntoConstraints = false
-            content.addSubview(view)
-        }
-        for edge in [bar, statusBar] {
-            edge.leadingAnchor.constraint(equalTo: content.leadingAnchor).isActive = true
-            edge.trailingAnchor.constraint(equalTo: content.trailingAnchor).isActive = true
-        }
-        NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: content.topAnchor),
-            bar.heightAnchor.constraint(equalToConstant: ClassicMetrics.toolbarHeight),
-            statusBar.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: ClassicMetrics.statusBarHeight),
-            insetBox.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: inset),
-            insetBox.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: inset),
-            insetBox.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -inset),
-            insetBox.bottomAnchor.constraint(equalTo: statusBar.topAnchor, constant: -6)
-        ])
+        window.contentView = GalleryContentView(toolbar: bar, specimen: insetBox,
+                                                status: statusBar, size: Self.initialSize)
     }
 
     // MARK: Wiring
@@ -310,4 +291,52 @@ final class GalleryController: NSObject, NSWindowDelegate {
 
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { model.undo }
     func windowWillClose(_ notification: Notification) { NSApp.terminate(nil) }
+}
+
+/// Keep window geometry independent of the specimen label's intrinsic height.
+/// Auto Layout remains inside each control group, not across the window root.
+@MainActor
+private final class GalleryContentView: NSView {
+    private let backdrop = ClassicPanelView()
+    private let toolbar: NSView
+    private let specimen: NSView
+    private let status: NSView
+
+    init(toolbar: NSView, specimen: NSView, status: NSView, size: NSSize) {
+        self.toolbar = toolbar
+        self.specimen = specimen
+        self.status = status
+        super.init(frame: NSRect(origin: .zero, size: size))
+        autoresizingMask = [.width, .height]
+        for view in [backdrop, toolbar, specimen, status] { addSubview(view) }
+        layoutContents()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        layoutContents()
+    }
+
+    override func layout() {
+        super.layout()
+        layoutContents()
+    }
+
+    private func layoutContents() {
+        let inset = ClassicMetrics.horizontalInset
+        let header = min(bounds.height, ClassicMetrics.toolbarHeight)
+        let footer = min(max(0, bounds.height - header), ClassicMetrics.statusBarHeight)
+        let bodyBottom = bounds.minY + footer + 6
+        backdrop.frame = bounds
+        toolbar.frame = NSRect(x: bounds.minX, y: bounds.maxY - header,
+                               width: bounds.width, height: header)
+        status.frame = NSRect(x: bounds.minX, y: bounds.minY,
+                              width: bounds.width, height: footer)
+        specimen.frame = NSRect(x: bounds.minX + inset, y: bodyBottom,
+                                width: max(0, bounds.width - 2 * inset),
+                                height: max(0, bounds.maxY - header - inset - bodyBottom))
+    }
 }
