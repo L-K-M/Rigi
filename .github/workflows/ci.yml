@@ -29,7 +29,7 @@ jobs:
       - run: swift run RigiGallery --smoke-test
       - run: swift run RigiGallery --screenshot "$RUNNER_TEMP/rigi-gallery.png"
       - run: swift build -c release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rigi-gallery-macos
           path: ${{ runner.temp }}/rigi-gallery.png
