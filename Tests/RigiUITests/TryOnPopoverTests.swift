@@ -108,6 +108,30 @@ final class TryOnPopoverTests: XCTestCase {
         XCTAssertEqual(palette.cancelCount, 1)
     }
 
+    func testClickAwayWhilePaletteShowsIsNotMistakenForTearOff() throws {
+        let (window, anchor) = makeAnchor()
+        defer { window.close() }
+        let picker = TryOnPopover(hint: "Preview")
+        let palette = TestTearOffPalette()
+        palette.showingPanel = true
+        var events: [String] = []
+        picker.present(from: anchor, palette: palette,
+                       items: [PickerItem(id: "one", title: "One")], currentID: "one",
+                       specimenFont: { _ in .systemFont(ofSize: 13) }, onPreview: { _ in },
+                       onDetach: { events.append("bank") },
+                       onFinish: { _ in events.append("finish") })
+        let popover = try XCTUnwrap(picker.presentedPopover)
+
+        popover.delegate = nil
+        picker.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: popover,
+                                            userInfo: [NSPopover.closeReasonUserInfoKey:
+                                                        NSPopover.CloseReason.standard]))
+
+        XCTAssertEqual(events, ["finish"], "click-away must not fire onDetach")
+        popover.close()
+        XCTAssertEqual(palette.detachCount, 0)
+    }
+
     private func present(_ picker: TryOnPopover, from anchor: NSView,
                          onFinish: @escaping (TryOnPopover.Outcome) -> Void) {
         picker.present(from: anchor, palette: nil, items: [], currentID: nil,
@@ -140,7 +164,8 @@ private final class TestTearOffPalette: TearOffPalette {
                           backing: .buffered, defer: false)
     var selectedID: String?
     var detachCount = 0
-    var isShowingPanel: Bool { false }
+    var showingPanel = false
+    var isShowingPanel: Bool { showingPanel }
 
     func windowForDetach(selecting id: String?) -> NSWindow {
         selectedID = id
