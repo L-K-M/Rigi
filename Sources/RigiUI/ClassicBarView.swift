@@ -11,7 +11,7 @@ public enum ClassicMetrics {
 
 /// A classic backing for app-owned toolbar or inspector content.
 /// Subclass only to compose controls; editing semantics belong to the app.
-open class ClassicBarView: NSView {
+open class ClassicBarView: NSView, ClassicChromeDrawing {
     public enum Style { case toolbar, panel }
 
     private let style: Style

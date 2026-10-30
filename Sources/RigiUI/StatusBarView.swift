@@ -11,7 +11,7 @@ import AppKit
 // Between the message and the zoom cluster sit, when the application asks for
 // them, a progress bar with a cancel button and accessory views such as an
 // information pop-up.
-public final class StatusBarView: NSView, NSTextFieldDelegate {
+public final class StatusBarView: NSView, NSTextFieldDelegate, ClassicChromeDrawing {
 
     private let label = NSTextField(labelWithString: "")
     private let trailingRow = NSStackView()
