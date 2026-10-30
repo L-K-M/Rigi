@@ -105,9 +105,15 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     // picker (e.g. list styles) previews in place and can't be floated.
     public func popoverShouldDetach(_ popover: NSPopover) -> Bool { palette != nil }
 
+    /// Set when a detach was actually prepared (AppKit calls `detachableWindow`),
+    /// so a plain click-away can't be mistaken for a tear-off just because the
+    /// palette happens to be showing (chonk finding 7 — same guard as Palette).
+    private var detachmentPrepared = false
+
     public func detachableWindow(for popover: NSPopover) -> NSWindow? {
         // Configure-only: the detach commits (or doesn't) in popoverDidClose.
-        palette?.windowForDetach(selecting: list.selectedItem?.id)
+        detachmentPrepared = true
+        return palette?.windowForDetach(selecting: list.selectedItem?.id)
     }
 
     public func popoverDidClose(_ notification: Notification) {
@@ -115,12 +121,12 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         guard !finished else { return }   // Return/Esc already ended the session
         finished = true
         // Did this close hand the session to the palette (tear-off), or was it a
-        // plain click-away? Check the documented close reason, with the panel's
-        // actual visibility as a fallback signal.
+        // plain click-away? The close reason is authoritative, but the panel
+        // visibility fallback only counts when a detachment was prepared.
         let reason = notification.userInfo?[NSPopover.closeReasonUserInfoKey]
-        let detached = (reason as? NSPopover.CloseReason) == .detachToWindow
+        let reasonIsDetach = (reason as? NSPopover.CloseReason) == .detachToWindow
             || (reason as? String) == NSPopover.CloseReason.detachToWindow.rawValue
-            || palette?.isShowingPanel == true
+        let detached = detachmentPrepared && (reasonIsDetach || palette?.isShowingPanel == true)
         if detached {
             onDetach?()           // bank the attached browsing as one undo step
             palette?.didDetach()
@@ -133,6 +139,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     private func teardown() {
         popover = nil
         palette = nil
+        detachmentPrepared = false
         onPreview = nil
         onDetach = nil
         onFinish = nil
