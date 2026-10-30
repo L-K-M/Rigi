@@ -34,7 +34,7 @@ public struct PickerItem: Equatable {
 ///     double-click edits instead of committing (STYLES.md §6.1).
 ///   • `allowsReordering` + `onReorder` — rows can be dragged to reorder (the
 ///     Style Library window; disabled while a filter is active).
-public final class PickerListView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
+public final class PickerListView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, ClassicChromeDrawing {
 
     /// Selection landed on an item by user action (click, arrows, filter).
     public var onPick: ((PickerItem) -> Void)?
@@ -298,7 +298,7 @@ public final class PickerListView: NSView, NSTableViewDataSource, NSTableViewDel
 /// A list row: the specimen label, plus — when the list is editable — a small
 /// classic edit well (a pencil in a bezel) shown while the pointer is over the
 /// row (STYLES.md §6.1).
-private final class PickerRowView: NSView {
+private final class PickerRowView: NSView, ClassicChromeDrawing {
 
     var onEdit: (() -> Void)?
 
@@ -367,7 +367,7 @@ private final class PickerRowView: NSView {
 
 /// The hand-drawn pencil well: a miniature classic bezel with a pencil glyph,
 /// at row scale.
-private final class PickerEditWell: NSControl {
+private final class PickerEditWell: NSControl, ClassicChromeDrawing {
 
     private var isPressed = false
 

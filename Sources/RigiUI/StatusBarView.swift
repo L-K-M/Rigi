@@ -7,7 +7,7 @@ import AppKit
 // rest of the chrome, it mutes when the window isn't active (the engraved label
 // is re-set from the window's main/key notifications, since text color is view
 // state rather than something resolved at draw time).
-public final class StatusBarView: NSView {
+public final class StatusBarView: NSView, ClassicChromeDrawing {
 
     private let label = NSTextField(labelWithString: "")
     private var activationObservers: [NSObjectProtocol] = []

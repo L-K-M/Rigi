@@ -157,10 +157,17 @@ enum ClassicChromeActivation {
 
     private static func invalidate(_ view: NSView?) {
         guard let view else { return }
-        view.needsDisplay = true
+        // Only chrome-drawing views repaint; walking the tree is cheap, but
+        // setting needsDisplay on an app document view would force its full
+        // redraw on every window activation change (chonk finding 17).
+        if view is any ClassicChromeDrawing { view.needsDisplay = true }
         view.subviews.forEach { invalidate($0) }
     }
 }
+
+/// Marks RigiUI views that draw through `ClassicChrome`, so activation changes
+/// repaint only them — never the host app's (possibly document-heavy) views.
+protocol ClassicChromeDrawing {}
 
 // MARK: - Glyphs
 
@@ -229,7 +236,7 @@ public enum ClassicGlyph {
 /// hairlines — the classic B/I/U and alignment clusters. `selectOne` keeps
 /// exactly one segment on; `selectAny` toggles each independently; `momentary`
 /// only flashes pressed and reports the click (the status bar's zoom cluster).
-public final class ClassicSegmentedControl: NSControl {
+public final class ClassicSegmentedControl: NSControl, ClassicChromeDrawing {
 
     public enum Mode { case selectOne, selectAny, momentary }
 
@@ -378,7 +385,7 @@ public final class ClassicSegmentedControl: NSControl {
 /// with stacked up/down chevrons, 11 pt title. The API mirrors the slice of
 /// NSPopUpButton the toolbar uses, so callers read the same. Use
 /// `ClassicChooserControl` to present custom content instead of an item menu.
-public class ClassicPopUp: NSControl {
+public class ClassicPopUp: NSControl, ClassicChromeDrawing {
 
     private let popMenu = NSMenu()
     private let fixedWidth: CGFloat
@@ -560,7 +567,7 @@ public final class ClassicChooserControl: ClassicPopUp {
 
 /// The font-size control: a white inset text area you can type into, joined to a
 /// gradient arrow well that pops a preset menu — the classic combo-field shape.
-public final class ClassicSizeField: NSView {
+public final class ClassicSizeField: NSView, ClassicChromeDrawing {
 
     public var onCommit: ((String) -> Void)?
 
@@ -676,7 +683,7 @@ public final class ClassicSizeField: NSView {
 /// NSColorWell behavior (click to drive the shared color panel) in a classic
 /// shell: gradient bezel frame around a hairline-edged swatch; the bezel goes
 /// sunken while the well is active.
-public final class ClassicColorWell: NSColorWell {
+public final class ClassicColorWell: NSColorWell, ClassicChromeDrawing {
 
     public override var color: NSColor {
         didSet { needsDisplay = true }
@@ -724,7 +731,7 @@ public final class ClassicColorWell: NSColorWell {
 // MARK: - Etched separator
 
 /// The two-hairline (dark + light) vertical divider between control groups.
-public final class EtchedSeparatorView: NSView {
+public final class EtchedSeparatorView: NSView, ClassicChromeDrawing {
 
     public override var intrinsicContentSize: NSSize { NSSize(width: 2, height: 24) }
 
@@ -741,7 +748,7 @@ public final class EtchedSeparatorView: NSView {
 
 /// A standalone classic push button: one gradient bezel with a centered 11 pt
 /// title, flashing pressed while clicked. Public for the welcome screen.
-public final class ClassicButton: NSControl {
+public final class ClassicButton: NSControl, ClassicChromeDrawing {
 
     public var title: String {
         didSet {
@@ -856,7 +863,7 @@ public enum ClassicText {
 
 /// A short horizontal etched rule (dark hairline over a light one) — the classic
 /// ornamental divider. Non-flipped coordinates: dark on top, light just below.
-public final class ClassicRuleView: NSView {
+public final class ClassicRuleView: NSView, ClassicChromeDrawing {
 
     public override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 2) }
 
@@ -872,7 +879,7 @@ public final class ClassicRuleView: NSView {
 
 /// A classic panel backdrop: the polished gradient as a full content background
 /// (the welcome screen sits on this).
-public final class ClassicPanelView: NSView {
+public final class ClassicPanelView: NSView, ClassicChromeDrawing {
 
     public override func draw(_ dirtyRect: NSRect) {
         let active = ClassicChrome.active(for: self)
@@ -885,7 +892,7 @@ public final class ClassicPanelView: NSView {
 
 /// A white inset surface with a hairline border and a faint top inner shadow —
 /// the classic "well" that lists sit in (the welcome screen's recents).
-public final class ClassicInsetBox: NSView {
+public final class ClassicInsetBox: NSView, ClassicChromeDrawing {
 
     public func embed(_ view: NSView) {
         view.translatesAutoresizingMaskIntoConstraints = false
