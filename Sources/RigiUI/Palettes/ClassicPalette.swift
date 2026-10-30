@@ -69,7 +69,7 @@ public class ClassicPaletteWindow: NSPanel {
 /// small red close dot — the standard close button at palette scale — the
 /// panel-gradient body, and a hairline window border. Palettes hide when the
 /// app deactivates, so the chrome always draws at full (active) strength.
-public final class PaletteChromeView: NSView {
+public final class PaletteChromeView: NSView, ClassicChromeDrawing {
 
     /// Half the standard title bar — the classic cue that this isn't a document
     /// window.
