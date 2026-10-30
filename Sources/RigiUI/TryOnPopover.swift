@@ -36,6 +36,10 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     private let list: PickerListView
     private var popover: NSPopover?
     private var palette: TearOffPalette?
+    /// The control the picker was presented from; focus returns to it on close
+    /// (interface guidelines: closing a picker returns focus to the invoking
+    /// editor, chonk finding 18).
+    private weak var anchor: NSView?
     private var onPreview: ((PickerItem) -> Void)?  // live, single-undo session
     private var onDetach: (() -> Void)?             // bank the session before the palette takes over
     private var onFinish: ((Outcome) -> Void)?     // end the session + refocus
@@ -65,6 +69,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
                  onDetach: @escaping () -> Void,
                   onFinish: @escaping (Outcome) -> Void) {
         guard popover == nil else { return }
+        self.anchor = anchor
         self.palette = palette
         self.onPreview = onPreview
         self.onDetach = onDetach
@@ -104,6 +109,14 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         finished = true
         onFinish?(outcome)
         popover?.close()
+        restoreFocus()
+    }
+
+    /// Closing or committing an attached picker returns focus to the invoking
+    /// control (guidelines §"Pickers": the editor keeps keyboard focus).
+    private func restoreFocus() {
+        guard let anchor, let window = anchor.window else { return }
+        window.makeFirstResponder(anchor)
     }
 
     // MARK: - Tear-off → hand the session to the global palette
@@ -141,6 +154,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         // Click-away keeps the try-on; after a tear-off this is a no-op end plus
         // the control re-sync and page refocus.
         onFinish?(.commit)
+        restoreFocus()
     }
 
     /// A drag that asked the palette for its window but did not tear off.
@@ -154,6 +168,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         detachRequested = false
         popover = nil
         palette = nil
+        anchor = nil
         onPreview = nil
         onDetach = nil
         onFinish = nil
