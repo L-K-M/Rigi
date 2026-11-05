@@ -100,6 +100,7 @@ public final class PaletteChromeView: NSView {
         didSet {
             guard tabTitles != oldValue else { return }
             updateTabAccessibility()
+            updateCloseButtonAccessibility()
             needsDisplay = true
         }
     }
@@ -258,9 +259,15 @@ public final class PaletteChromeView: NSView {
             dx: -Self.closeButtonSlop, dy: -Self.closeButtonSlop)
     }
 
+    /// The dot closes every tab of a group, and says so.
     private func updateCloseButtonAccessibility() {
-        closeButton.toolTip = "Close \(title) Palette"
-        closeButton.setAccessibilityLabel("Close \(title) palette")
+        if tabTitles.count > 1 {
+            closeButton.toolTip = "Close All Tabs"
+            closeButton.setAccessibilityLabel("Close all tabs: " + tabTitles.joined(separator: ", "))
+        } else {
+            closeButton.toolTip = "Close \(title) Palette"
+            closeButton.setAccessibilityLabel("Close \(title) palette")
+        }
     }
 
     public override func draw(_ dirtyRect: NSRect) {

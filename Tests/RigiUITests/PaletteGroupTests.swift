@@ -379,6 +379,115 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertFalse(b.hostingPanel === groupPanel)
   }
 
+  func testAnAbandonedTearOffLeavesTheGroupDockedCollapsedAndSized() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    dock.setDefaults([
+      PaletteGroupDefault([kind("a")], placement: .topLeading),
+      PaletteGroupDefault([kind("b"), kind("c")], placement: .docked(below: kind("a"))),
+    ])
+    let resizable = PaletteSizing.resizable(minimumContentSize: NSSize(width: 100, height: 100))
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (b, _) = makePalette("b", title: "Beta", dock: dock, sizing: resizable)
+    let (c, _) = makePalette("c", title: "Gamma", dock: dock, sizing: resizable)
+    a.showPanel()
+    b.showPanel()
+    let groupB = try XCTUnwrap(dock.groupID(of: b))
+    let index = try XCTUnwrap(dock.layout.index(ofGroup: groupB))
+    dock.toggleCollapsed(groupB)
+    b.close()
+
+    // Alone in its group: the drag would reuse the group's own panel.
+    _ = b.windowForDetach(selecting: nil)
+    b.cancelDetach()
+
+    XCTAssertEqual(dock.dockedParent(of: groupB), dock.groupID(of: a))
+    XCTAssertTrue(dock.isCollapsed(groupB))
+
+    // Sharing an open group: the drag moves it out, and back on letting go.
+    dock.toggleCollapsed(groupB)
+    b.showPanel()
+    let panel = try XCTUnwrap(b.hostingPanel)
+    panel.setFrame(
+      NSRect(x: panel.frame.minX, y: panel.frame.maxY - 300, width: panel.frame.width, height: 300),
+      display: false
+    )
+    let height = dock.layout.groups[index].heights["b"]
+    XCTAssertNotNil(height)
+    b.close()
+    c.showPanel()
+
+    _ = b.windowForDetach(selecting: nil)
+    b.cancelDetach()
+
+    XCTAssertEqual(dock.members(of: kind("b")), [kind("b"), kind("c")])
+    let restored = try XCTUnwrap(dock.layout.index(ofGroup: groupB))
+    XCTAssertEqual(dock.layout.groups[restored].heights["b"], height)
+  }
+
+  func testDetachingAFloatingTabTakesItOffItsOldPanel() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (b, _) = makePalette("b", title: "Beta", dock: dock)
+    a.showPanel()
+    b.showPanel()
+    let shared = try XCTUnwrap(a.hostingPanel)
+
+    let window = b.windowForDetach(selecting: nil)
+
+    XCTAssertFalse(window === shared)
+    XCTAssertEqual(shared.chrome.tabTitles, [], "Only Alpha is left on the old panel")
+    XCTAssertEqual(shared.chrome.title, "Alpha")
+  }
+
+  func testInsertingIntoAColumnKeepsTheLowerPanelsWhereTheyWere() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let (p, _) = makePalette("p", title: "Top", dock: dock)
+    let (c, _) = makePalette("c", title: "Lower", dock: dock)
+    let (d, _) = makePalette("d", title: "Inserted", dock: dock)
+    p.showPanel()
+    c.showPanel()
+    d.showPanel()
+    let top = try XCTUnwrap(p.hostingPanel)
+    let lower = try XCTUnwrap(c.hostingPanel)
+    let inserted = try XCTUnwrap(d.hostingPanel)
+    let topGroup = try XCTUnwrap(dock.groupID(of: p))
+    let lowerGroup = try XCTUnwrap(dock.groupID(of: c))
+    let insertedGroup = try XCTUnwrap(dock.groupID(of: d))
+    dock.move(topGroup, to: NSRect(origin: NSPoint(x: 100, y: 500), size: top.frame.size))
+    lower.setFrame(
+      NSRect(origin: NSPoint(x: 100, y: top.frame.minY - lower.frame.height), size: lower.frame.size),
+      display: false
+    )
+    dock.dock(lowerGroup, below: topGroup)
+    inserted.setFrame(
+      NSRect(origin: NSPoint(x: 150, y: top.frame.minY - inserted.frame.height), size: inserted.frame.size),
+      display: false
+    )
+
+    dock.dock(insertedGroup, below: topGroup)
+
+    XCTAssertEqual(dock.dockedParent(of: lowerGroup), insertedGroup)
+    XCTAssertEqual(lower.frame.maxY, inserted.frame.minY)
+    XCTAssertEqual(lower.frame.minX, 100, "The lower panel keeps its place across")
+  }
+
+  func testTheCloseDotSaysItClosesEveryTab() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (b, _) = makePalette("b", title: "Beta", dock: dock)
+    a.showPanel()
+    let panel = try XCTUnwrap(a.hostingPanel)
+    let closeButton = try XCTUnwrap(panel.chrome.subviews.compactMap { $0 as? NSButton }.first)
+    XCTAssertEqual(closeButton.accessibilityLabel(), "Close Alpha palette")
+
+    b.showPanel()
+
+    XCTAssertEqual(closeButton.accessibilityLabel(), "Close all tabs: Alpha, Beta")
+    XCTAssertEqual(closeButton.toolTip, "Close All Tabs")
+  }
+
   func testResizingRemembersTheWidthAndThePaletteHeight() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     let (a, _) = makePalette(

@@ -71,6 +71,43 @@ final class TryOnPopoverTests: XCTestCase {
         XCTAssertEqual(palette.detachCount, 1)
     }
 
+    func testAnAbandonedDragCancelsOnceAndALaterSessionDoesNotCancelAgain() throws {
+        let (window, anchor) = makeAnchor()
+        defer { window.close() }
+        let picker = TryOnPopover(hint: "Preview")
+        let palette = TestTearOffPalette()
+        func session() throws -> NSPopover {
+            picker.present(from: anchor, palette: palette,
+                           items: [PickerItem(id: "one", title: "One")], currentID: "one",
+                           specimenFont: { _ in .systemFont(ofSize: 13) }, onPreview: { _ in },
+                           onDetach: {}, onFinish: { _ in })
+            let popover = try XCTUnwrap(picker.presentedPopover)
+            popover.delegate = nil
+            return popover
+        }
+
+        // A tear-off that lands, then a plain click-away in the next session.
+        let first = try session()
+        _ = picker.detachableWindow(for: first)
+        picker.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: first,
+                                            userInfo: [NSPopover.closeReasonUserInfoKey:
+                                                        NSPopover.CloseReason.detachToWindow]))
+        first.close()
+        drain(picker)
+        let second = try session()
+        picker.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: second))
+        second.close()
+        drain(picker)
+        XCTAssertEqual(palette.cancelCount, 0, "Nothing was prepared in the second session")
+
+        // A drag that asks for the window and then lets go.
+        let third = try session()
+        _ = picker.detachableWindow(for: third)
+        picker.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: third))
+        third.close()
+        XCTAssertEqual(palette.cancelCount, 1)
+    }
+
     private func present(_ picker: TryOnPopover, from anchor: NSView,
                          onFinish: @escaping (TryOnPopover.Outcome) -> Void) {
         picker.present(from: anchor, palette: nil, items: [], currentID: nil,
@@ -111,4 +148,7 @@ private final class TestTearOffPalette: TearOffPalette {
     }
 
     func didDetach() { detachCount += 1 }
+
+    var cancelCount = 0
+    func cancelDetach() { cancelCount += 1 }
 }

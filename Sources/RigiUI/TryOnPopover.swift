@@ -151,6 +151,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     }
 
     private func teardown() {
+        detachRequested = false
         popover = nil
         palette = nil
         onPreview = nil

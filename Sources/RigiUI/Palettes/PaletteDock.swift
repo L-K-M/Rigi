@@ -17,9 +17,18 @@ final class PaletteDock: NSObject {
   /// into a panel of its own.
   static let tearOffDistance: CGFloat = 12
 
+  /// What a popover tear-off changed in the layout, so an abandoned drag
+  /// can put it back.
   private struct DetachOrigin {
     let group: String
-    let position: Int
+    /// Where the kind sat in its group when the drag moved it out; nil when
+    /// the drag reused the group's own panel.
+    let position: Int?
+    let height: CGFloat?
+    let selected: String?
+    let isCollapsed: Bool
+    let dockedBelow: String?
+    let dockOffset: CGFloat
   }
 
   private let store: PaletteLayoutStore
@@ -172,10 +181,23 @@ final class PaletteDock: NSObject {
     let index = ensureGroupIndex(for: kind)
     var id = layout.groups[index].id
 
-    let others = occupyingPalettes(in: layout.groups[index]).filter { $0 !== palette }
-    if !others.isEmpty, let position = layout.groups[index].kinds.firstIndex(of: kind) {
-      detachOrigins[kind] = DetachOrigin(group: id, position: position)
+    let record = layout.groups[index]
+    let others = occupyingPalettes(in: record).filter { $0 !== palette }
+    let position = others.isEmpty ? nil : record.kinds.firstIndex(of: kind)
+    detachOrigins[kind] = DetachOrigin(
+      group: id,
+      position: position,
+      height: record.heights[kind],
+      selected: record.selected,
+      isCollapsed: record.isCollapsed,
+      dockedBelow: record.dockedBelow,
+      dockOffset: record.dockOffset
+    )
+
+    if position != nil {
       id = moveToNewGroup(kind, fromGroupAt: index)
+      // A palette already floating there leaves its old panel's tabs.
+      sync(record.id)
     } else {
       layout.groups[index].selected = kind
       layout.groups[index].isCollapsed = false
@@ -188,29 +210,42 @@ final class PaletteDock: NSObject {
     return panels[id]!.panel
   }
 
-  /// The tear-off `prepareDetachment` set up did not happen.
+  /// The tear-off `prepareDetachment` set up did not happen: the layout
+  /// goes back to how it was before the drag.
   func cancelDetachment(_ palette: Palette) {
     let kind = palette.kind.identifier
     guard let current = layout.index(ofGroupContaining: kind) else { return }
 
     let currentID = layout.groups[current].id
-    if let origin = detachOrigins.removeValue(forKey: kind),
-      origin.group != currentID,
+    guard let origin = detachOrigins.removeValue(forKey: kind),
       layout.index(ofGroup: origin.group) != nil
-    {
-      removeKind(kind, fromGroupAt: current)
-      if let target = layout.index(ofGroup: origin.group) {
-        let position = min(origin.position, layout.groups[target].kinds.count)
-        layout.groups[target].kinds.insert(kind, at: position)
-      }
-      removeGroupIfEmpty(currentID)
-      if let target = layout.index(ofGroupContaining: kind) {
-        sync(layout.groups[target].id)
-      }
-    } else {
+    else {
       sync(currentID)
+      return
     }
 
+    if let position = origin.position, origin.group != currentID {
+      let height = layout.groups[current].heights[kind] ?? origin.height
+      removeKind(kind, fromGroupAt: current)
+      if let target = layout.index(ofGroup: origin.group) {
+        layout.groups[target].kinds.insert(kind, at: min(position, layout.groups[target].kinds.count))
+        layout.groups[target].heights[kind] = height
+      }
+      removeGroupIfEmpty(currentID)
+    }
+
+    if let target = layout.index(ofGroup: origin.group) {
+      layout.groups[target].selected = origin.selected
+      layout.groups[target].isCollapsed = origin.isCollapsed
+      if let parent = origin.dockedBelow, layout.index(ofGroup: parent) != nil,
+        !layout.column(from: origin.group).contains(parent)
+      {
+        layout.groups[target].dockedBelow = parent
+        layout.groups[target].dockOffset = origin.dockOffset
+      }
+    }
+
+    sync(origin.group)
     scheduleSave()
   }
 
@@ -360,15 +395,22 @@ final class PaletteDock: NSObject {
       let groupFrame = frame(of: id), let parentFrame = frame(of: parent)
     else { return }
 
-    let tail = columnTail(id)
-    for child in layout.children(of: parent) where child != id {
-      guard let childIndex = layout.index(ofGroup: child) else { continue }
-      layout.groups[childIndex].dockedBelow = tail
+    // Where the groups already hanging there sit across, to keep them there.
+    let displaced = layout.children(of: parent).filter { $0 != id }.compactMap { child in
+      layout.index(ofGroup: child).map { (index: $0, x: parentFrame.minX + layout.groups[$0].dockOffset) }
     }
 
     layout.groups[index].dockedBelow = parent
     layout.groups[index].dockOffset = groupFrame.minX - parentFrame.minX
     layoutColumn(below: parent)
+
+    let tail = columnTail(id)
+    let tailX = hangPoint(below: tail)?.x ?? parentFrame.minX
+    for child in displaced {
+      layout.groups[child.index].dockedBelow = tail
+      layout.groups[child.index].dockOffset = child.x - tailX
+    }
+    layoutColumn(below: tail)
     scheduleSave()
   }
 
