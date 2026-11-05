@@ -15,9 +15,10 @@ concurrency:
 
 jobs:
   native:
-    runs-on: macos-14
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+    # GitHub no longer accepts macos-14 jobs ("configuration not supported").
+    # macos-15 ships Xcode 16 or later; Package.swift still declares the
+    # Swift 5.9 tools floor.
+    runs-on: macos-15
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
