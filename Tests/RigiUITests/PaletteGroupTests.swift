@@ -424,6 +424,22 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertEqual(dock.layout.groups[restored].heights["b"], height)
   }
 
+  func testASecondDragInOneSessionStillGoesBackToTheFirstGroup() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (b, _) = makePalette("b", title: "Beta", dock: dock)
+    a.showPanel()
+
+    // AppKit asks for the window again when a popover that snapped back is
+    // dragged a second time; only the popover's close settles the session.
+    _ = b.windowForDetach(selecting: nil)
+    _ = b.windowForDetach(selecting: nil)
+    b.cancelDetach()
+
+    XCTAssertEqual(dock.members(of: kind("b")), [kind("a"), kind("b")])
+  }
+
   func testDetachingAFloatingTabTakesItOffItsOldPanel() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])

@@ -184,15 +184,19 @@ final class PaletteDock: NSObject {
     let record = layout.groups[index]
     let others = occupyingPalettes(in: record).filter { $0 !== palette }
     let position = others.isEmpty ? nil : record.kinds.firstIndex(of: kind)
-    detachOrigins[kind] = DetachOrigin(
-      group: id,
-      position: position,
-      height: record.heights[kind],
-      selected: record.selected,
-      isCollapsed: record.isCollapsed,
-      dockedBelow: record.dockedBelow,
-      dockOffset: record.dockOffset
-    )
+    // A popover that snapped back can be dragged again in the same session;
+    // the layout from before the first drag is the one to go back to.
+    if detachOrigins[kind] == nil {
+      detachOrigins[kind] = DetachOrigin(
+        group: id,
+        position: position,
+        height: record.heights[kind],
+        selected: record.selected,
+        isCollapsed: record.isCollapsed,
+        dockedBelow: record.dockedBelow,
+        dockOffset: record.dockOffset
+      )
+    }
 
     if position != nil {
       id = moveToNewGroup(kind, fromGroupAt: index)
