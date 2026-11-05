@@ -7,6 +7,12 @@ public protocol TearOffPalette: AnyObject {
     var isShowingPanel: Bool { get }
     func windowForDetach(selecting id: String?) -> NSWindow
     func didDetach()
+    /// The drag `windowForDetach` prepared for ended without tearing off.
+    func cancelDetach()
+}
+
+extension TearOffPalette {
+    public func cancelDetach() {}
 }
 
 // The attached "try-on" picker: a transient popover anchored to one of the
@@ -34,6 +40,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     private var onDetach: (() -> Void)?             // bank the session before the palette takes over
     private var onFinish: ((Outcome) -> Void)?     // end the session + refocus
     private var finished = false
+    private var detachRequested = false
 
     public init(hint: String) {
         list = PickerListView(hint: hint)
@@ -107,12 +114,16 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
 
     public func detachableWindow(for popover: NSPopover) -> NSWindow? {
         // Configure-only: the detach commits (or doesn't) in popoverDidClose.
-        palette?.windowForDetach(selecting: list.selectedItem?.id)
+        detachRequested = true
+        return palette?.windowForDetach(selecting: list.selectedItem?.id)
     }
 
     public func popoverDidClose(_ notification: Notification) {
         defer { teardown() }
-        guard !finished else { return }   // Return/Esc already ended the session
+        guard !finished else {            // Return/Esc already ended the session
+            cancelRequestedDetach()
+            return
+        }
         finished = true
         // Did this close hand the session to the palette (tear-off), or was it a
         // plain click-away? Check the documented close reason, with the panel's
@@ -124,10 +135,19 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         if detached {
             onDetach?()           // bank the attached browsing as one undo step
             palette?.didDetach()
+        } else {
+            cancelRequestedDetach()
         }
         // Click-away keeps the try-on; after a tear-off this is a no-op end plus
         // the control re-sync and page refocus.
         onFinish?(.commit)
+    }
+
+    /// A drag that asked the palette for its window but did not tear off.
+    private func cancelRequestedDetach() {
+        guard detachRequested else { return }
+        detachRequested = false
+        palette?.cancelDetach()
     }
 
     private func teardown() {

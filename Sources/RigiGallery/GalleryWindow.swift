@@ -96,6 +96,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
     let tryOnPopover = TryOnPopover(hint: "Return keeps · Esc reverts · drag off to float")
     let tearOffPalette: GalleryTearOffPalette
     let inspectorPalette: Palette
+    let swatchesPalette: Palette
     private var specimenText: String
 
     override init() {
@@ -105,12 +106,23 @@ final class GalleryController: NSObject, NSWindowDelegate {
         tearOffPalette = GalleryTearOffPalette(
             items: Self.families.map { PickerItem(id: $0, title: $0) }
         ) { Self.specimenFont(for: $0) }
+        // Inspector and Swatches share one panel as tabs until rearranged.
+        PaletteCenter.shared.setDefaultLayout([
+            PaletteGroupDefault([GalleryPaletteKind.inspector, GalleryPaletteKind.swatches],
+                                placement: .topTrailing)
+        ])
         inspectorPalette = PaletteCenter.shared.palette(
-            for: PaletteDefinition(kind: PaletteKind("inspector"), title: "Inspector",
+            for: PaletteDefinition(kind: GalleryPaletteKind.inspector, title: "Inspector",
                                    contentSize: NSSize(width: 224, height: 118),
                                    frameAutosaveName: "RigiGallery.inspector"),
             target: { model },
             makeContent: { InspectorContent() })
+        swatchesPalette = PaletteCenter.shared.palette(
+            for: PaletteDefinition(kind: GalleryPaletteKind.swatches, title: "Swatches",
+                                   contentSize: NSSize(width: 224, height: 64),
+                                   sizing: .resizable(minimumContentSize: NSSize(width: 160, height: 40))),
+            target: { model },
+            makeContent: { SwatchesContent() })
         window = ClassicWindow(
             contentRect: NSRect(origin: .zero, size: Self.initialSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -246,6 +258,28 @@ final class GalleryController: NSObject, NSWindowDelegate {
     @objc private func inspectorPressed(_ sender: Any?) {
         guard let anchor = sender as? NSView else { return }
         inspectorPalette.present(from: anchor)
+    }
+
+    // MARK: Window menu (reached through the window delegate)
+
+    @objc func showSwatches(_ sender: Any?) {
+        swatchesPalette.isPresented ? swatchesPalette.bringToFront() : swatchesPalette.showPanel()
+    }
+
+    @objc func togglePalettes(_ sender: Any?) {
+        let center = PaletteCenter.shared
+        center.isHidingPalettes ? center.restoreAll() : center.hideAll()
+    }
+
+    @objc func resetPaletteLayout(_ sender: Any?) {
+        PaletteCenter.shared.resetLayout()
+    }
+
+    @objc func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(togglePalettes(_:)) {
+            item.title = PaletteCenter.shared.isHidingPalettes ? "Show Palettes" : "Hide Palettes"
+        }
+        return true
     }
 
     private func commitSizeText(_ text: String) {

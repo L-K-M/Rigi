@@ -170,3 +170,58 @@ final class InspectorContent: NSViewController, PaletteContent {
         emphasisPopUp.selectItem(at: specimen.bold ? 1 : specimen.italic ? 2 : 0)
     }
 }
+
+enum GalleryPaletteKind {
+    static let inspector = PaletteKind("inspector")
+    static let swatches = PaletteKind("swatches")
+}
+
+/// A second generic palette, resizable, that groups with the inspector as a
+/// tab: a row of ink swatches, each a committed edit on the model.
+@MainActor
+final class SwatchesContent: NSViewController, PaletteContent {
+
+    private static let inks: [NSColor] = [
+        .black, .darkGray, .systemRed, .systemOrange, .systemGreen, .systemBlue, .systemPurple
+    ]
+
+    private weak var model: GalleryModel?
+    private var buttons: [NSButton] = []
+
+    override func loadView() {
+        let root = ClassicPanelView()
+        buttons = Self.inks.enumerated().map { index, ink in
+            let button = NSButton(title: "", target: self, action: #selector(pick(_:)))
+            button.tag = index
+            button.isBordered = false
+            button.wantsLayer = true
+            button.layer?.backgroundColor = ink.cgColor
+            button.layer?.borderColor = NSColor(calibratedWhite: 0.45, alpha: 1).cgColor
+            button.layer?.borderWidth = 1
+            button.setAccessibilityLabel("Ink \(index + 1)")
+            button.widthAnchor.constraint(equalToConstant: 22).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 22).isActive = true
+            return button
+        }
+        let row = NSStackView(views: buttons)
+        row.spacing = 6
+        row.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: root.topAnchor),
+            row.leadingAnchor.constraint(equalTo: root.leadingAnchor)
+        ])
+        view = root
+    }
+
+    func retarget(to target: GalleryModel?) {
+        model = target
+        for button in buttons { button.isEnabled = target != nil }
+    }
+
+    @objc private func pick(_ sender: NSButton) {
+        guard Self.inks.indices.contains(sender.tag) else { return }
+        model?.edit { $0.color = Self.inks[sender.tag] }
+    }
+}

@@ -55,6 +55,33 @@ target when dismissed. A target closure should not retain a closed document.
 Call `frontDocumentDidChange()` for target changes outside AppKit window events.
 Observe `Palette.presentationDidChangeNotification` to synchronize chooser state.
 
+## Group palettes
+
+Declare default groups before showing palettes. Each group lists the kinds that
+share a panel, in tab order, and where the panel first opens. The person's own
+arrangement, saved under `Rigi.paletteLayout` in the application's defaults,
+wins for every kind it holds.
+
+```swift
+PaletteCenter.shared.setDefaultLayout([
+    PaletteGroupDefault([toolsKind], placement: .topLeading),
+    PaletteGroupDefault([optionsKind], placement: .docked(below: toolsKind)),
+    PaletteGroupDefault([layersKind, historyKind], placement: .topTrailing),
+])
+```
+
+Palettes the application opens together at launch keep the tab the person last
+picked. `bringToFront()` and a later `showPanel()` select the palette's tab.
+`groupMembers(of:)` lists the kinds sharing a kind's panel.
+
+Bind the Tab key, when no text field is editing, to toggle
+`hideAll(except:)` and `restoreAll()`; check `isHidingPalettes`. Offer
+`resetLayout()` as a Reset Palettes or Reset Workspace command.
+
+A `Palette` is also a `TearOffPalette`. Pass it to `TryOnPopover` to give a
+try-on chooser a floating form that groups and docks like any other palette.
+Its content resolves the selection from the target when retargeted.
+
 ## Live specimen previews
 
 Keep `TryOnPopover` alive for the presentation. Start the editor's transaction
@@ -83,7 +110,8 @@ transaction before the ordinary finish callback runs.
 
 `TearOffPalette` is the adapter seam for an existing app-owned palette. It
 prepares a window, reports actual visibility, and receives successful-detach
-notification. This lets Lucerne retain its style-library and formatting
+notification. `cancelDetach()` reports an abandoned tear-off; its default does
+nothing. App-owned palettes do not join palette groups. This lets Lucerne retain its style-library and formatting
 commands while sharing the same presentation and chrome as Sion.
 
 ## Existing application migrations

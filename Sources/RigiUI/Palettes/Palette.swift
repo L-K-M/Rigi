@@ -1,8 +1,12 @@
 import AppKit
 
 /// One app-global attached or floating presentation for a palette kind.
+///
+/// The floating form lives in a palette group's panel, possibly as one of
+/// several tabs; ``PaletteCenter`` arranges the groups. A palette is also a
+/// ``TearOffPalette``, so a ``TryOnPopover`` can tear off into it.
 @MainActor
-public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
+public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
   // Preserve the public raw name used by pre-Rigi SionKit observers.
   public static let presentationDidChangeNotification = Notification.Name(
     "SionKitPalettePresentationDidChange"
@@ -25,28 +29,45 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
     case showPanel
   }
 
-  private let definition: PaletteDefinition
+  let definition: PaletteDefinition
+
+  /// Whether a palette group's panel hosts this palette: floating, or
+  /// prepared for a tear-off that is under way.
+  var occupiesPanel: Bool { presentation == .panel || detachmentPrepared }
+
+  /// The floating form's body, once it has been made.
+  var panelContentViewController: NSViewController? { panelContent?.viewController }
+
+  /// The panel the floating form shows in. Module-internal; tests read it.
+  var hostingPanel: PalettePanel? { dock.panel(showing: self) }
+
   private let makeContent: @MainActor () -> AnyPaletteContent
+  private let dock: PaletteDock
 
   private var popover: NSPopover?
   private var popoverContent: AnyPaletteContent?
-  private var panel: PalettePanel?
   private var panelContent: AnyPaletteContent?
   private var detachmentPrepared = false
   private var popoverFollowUp: PopoverFollowUp?
 
+  /// A palette made outside ``PaletteCenter`` gets a dock of its own that
+  /// keeps its layout in memory.
   init<Content: PaletteContent>(
     definition: PaletteDefinition,
     target: @escaping @MainActor () -> Content.Target?,
-    makeContent: @escaping @MainActor () -> Content
+    makeContent: @escaping @MainActor () -> Content,
+    dock: PaletteDock? = nil
   ) {
     kind = definition.kind
     self.definition = definition
     self.makeContent = {
       AnyPaletteContent(content: makeContent(), target: target)
     }
+    self.dock = dock ?? PaletteDock(store: .memory())
 
     super.init()
+
+    self.dock.register(self)
   }
 
   /// Shows the attached form, or raises the existing floating form.
@@ -59,7 +80,7 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
 
     if presentation == .panel {
       retarget()
-      panel?.orderFront(nil)
+      dock.bringToFront(self)
       return
     }
 
@@ -102,24 +123,24 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
     showPanelNow()
   }
 
+  /// Raises the floating form, selecting its tab and expanding its group.
   public func bringToFront() {
     guard presentation == .panel else { return }
 
     retarget()
-    panel?.orderFront(nil)
+    dock.bringToFront(self)
   }
 
   public func close() {
     // A detached panel can briefly coexist with its closing popover.
-    let hasPresentedPanel = presentation == .panel || panel?.isVisible == true
     if let popover {
-      popoverFollowUp = hasPresentedPanel ? .closePanel : nil
+      popoverFollowUp = occupiesPanel ? .closePanel : nil
       popover.close()
       return
     }
 
     popoverFollowUp = nil
-    panel?.close()
+    closePanel()
   }
 
   /// Re-resolves the target after front-document or selection changes.
@@ -138,14 +159,26 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
   }
 
   public func detachableWindow(for popover: NSPopover) -> NSWindow? {
-    let panel = ensurePanel()
-    let content = ensurePanelContent()
-
-    content.retarget()
-    detachmentPrepared = true
-
     // AppKit places the returned panel at the end of the drag.
-    return panel
+    prepareDetachment()
+  }
+
+  // MARK: TearOffPalette
+
+  public var isShowingPanel: Bool { dock.isShowingPanel(self) }
+
+  /// Prepares the floating form for a ``TryOnPopover`` tear-off. The body
+  /// resolves its selection from the target, so `id` is not consulted.
+  public func windowForDetach(selecting id: String?) -> NSWindow {
+    prepareDetachment()
+  }
+
+  public func didDetach() {
+    completeDetachment()
+  }
+
+  public func cancelDetach() {
+    discardPreparedDetachment()
   }
 
   public func popoverDidClose(_ notification: Notification) {
@@ -158,7 +191,7 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
     if detached {
       completeDetachment()
       if followUp == .closePanel {
-        panel?.close()
+        closePanel()
       }
       return
     }
@@ -168,7 +201,7 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
 
     switch followUp {
     case .closePanel:
-      panel?.close()
+      closePanel()
     case .showPanel:
       showPanelNow()
     case nil:
@@ -176,8 +209,8 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
     }
   }
 
-  public func windowWillClose(_ notification: Notification) {
-    guard notification.object as? NSWindow === panel else { return }
+  private func closePanel() {
+    guard occupiesPanel else { return }
 
     if presentation == .panel {
       panelContent?.dismissed(from: .panel)
@@ -186,10 +219,10 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
     detachmentPrepared = false
     panelContent?.releaseTarget()
     transition(to: nil)
+    dock.didClose(self)
   }
 
   private func showPanelNow() {
-    let panel = ensurePanel()
     let content = ensurePanelContent()
 
     content.retarget()
@@ -199,27 +232,22 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
       transition(to: .panel)
     }
 
-    panel.orderFront(nil)
+    dock.show(self)
   }
 
-  private func ensurePanel() -> PalettePanel {
-    if let panel { return panel }
+  private func prepareDetachment() -> NSWindow {
+    let content = ensurePanelContent()
 
-    let panel = PalettePanel(definition: definition)
-    panel.delegate = self
-    panel.setCloseHandler { [weak self] in
-      self?.close()
-    }
+    content.retarget()
+    detachmentPrepared = true
 
-    self.panel = panel
-    return panel
+    return dock.prepareDetachment(self)
   }
 
   private func ensurePanelContent() -> AnyPaletteContent {
     if let panelContent { return panelContent }
 
     let content = newContent()
-    ensurePanel().embed(content.viewController)
     panelContent = content
     return content
   }
@@ -259,8 +287,7 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
       transition(to: .panel)
     }
 
-    panel?.orderFront(nil)
-    panel?.invalidateShadow()
+    dock.show(self)
   }
 
   private func discardPreparedDetachment() {
@@ -268,7 +295,7 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
 
     detachmentPrepared = false
     panelContent?.releaseTarget()
-    panel?.orderOut(nil)
+    dock.cancelDetachment(self)
   }
 
   private func didDetach(_ notification: Notification) -> Bool {
@@ -277,7 +304,7 @@ public final class Palette: NSObject, NSPopoverDelegate, NSWindowDelegate {
       (reason as? NSPopover.CloseReason) == .detachToWindow
       || (reason as? String) == NSPopover.CloseReason.detachToWindow.rawValue
 
-    return detachmentPrepared && (reasonIsDetach || panel?.isVisible == true)
+    return detachmentPrepared && (reasonIsDetach || dock.isShowingPanel(self))
   }
 
   private func focusInitialResponder(in content: AnyPaletteContent) {

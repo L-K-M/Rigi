@@ -23,9 +23,10 @@ public struct PaletteDefinition {
   public let contentSize: NSSize
   public let sizing: PaletteSizing
 
-  /// The name the panel persists its frame under. Nil falls back to a
-  /// Rigi-namespaced default derived from the kind; an app passes its own to
-  /// keep frames saved under an earlier toolkit's keys.
+  /// The name an earlier panel persisted its frame under with NSWindow's
+  /// frame autosave. Nil falls back to a Rigi-namespaced default derived from
+  /// the kind. A frame saved under it places the palette's group the first
+  /// time, before the palette layout holds a frame of its own.
   public let frameAutosaveName: String?
 
   public init(

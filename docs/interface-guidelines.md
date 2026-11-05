@@ -76,6 +76,32 @@ Palette headers are handles. Dragging the header moves the palette; the close
 dot closes it. A resizable palette exposes side and bottom resize bands.
 The top remains the move handle. Declare a minimum useful content size.
 
+## Palette groups and docking
+
+Several palettes can share one panel as tabs drawn in its title bar. A panel
+showing one palette shows its plain centered title instead.
+
+- Click a tab to show it. Drag a tab along the bar to reorder it, or out of the
+  bar to tear it into a panel of its own.
+- Drag the bar of a panel onto another panel's bar to add its palettes there as
+  tabs. The target bar shows a focus-colored ring while a drop would join it.
+- Panels snap to screen edges and to each other's edges within 8 points. A
+  panel dropped with its top on another panel's bottom docks there: the column
+  moves together, closes up around closed or collapsed members, and a panel
+  dragged out of it undocks.
+- Double-click a bar to collapse its panel to the bar, and again to expand it.
+  Picking a different tab of a collapsed panel expands it.
+- The close dot, Escape and Command-W close every palette in the panel. The
+  bar's contextual menu closes or separates one tab and offers collapse.
+- Tabs share the panel's width so the strip never moves under the pointer when
+  switching; the height is the shown palette's own. The panel is resizable
+  while a resizable palette shows.
+- A palette remembers its group while closed and reopens as a tab there.
+- `PaletteCenter.hideAll(except:)` takes panels off screen without closing any
+  palette, for an application's Tab key; `restoreAll()` brings them back.
+- The arrangement persists in the application's defaults.
+  `PaletteCenter.resetLayout()` returns to the application's default groups.
+
 ## Tear-off contract
 
 1. Clicking a chooser opens its attached popover.
@@ -91,7 +117,8 @@ The top remains the move handle. Declare a minimum useful content size.
 6. Ordinary palette clicks preserve document focus. A text/search field can
    become key when typing requires it. Palettes hide when the app deactivates.
 7. Closing a floating palette restores ordinary chooser presentation. Preserve
-   established frame autosave names during migrations.
+   established frame autosave names during migrations: a frame saved under one
+   places the palette's group the first time, before a layout exists.
 
 The application resolves document identity. Do not cache the window that
 originally opened a palette as its permanent edit target.
