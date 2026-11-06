@@ -86,6 +86,7 @@ final class GalleryTearOffPalette: TearOffPalette {
 final class InspectorContent: NSViewController, PaletteContent {
 
     private weak var model: GalleryModel?
+    let zoomSlider = ClassicValueSlider(title: nil, range: 25...400, value: 100, unit: "%")
     private let sizeField = ClassicSizeField(presets: GalleryController.sizePresets, width: 64)
     private let colorWell = ClassicColorWell(frame: .zero)
     private let emphasisPopUp = ClassicPopUpButton(frame: .zero, pullsDown: false)
@@ -96,7 +97,8 @@ final class InspectorContent: NSViewController, PaletteContent {
         let rows = NSStackView(views: [
             formRow("Size", sizeField),
             formRow("Ink", colorWell),
-            formRow("Emphasis", emphasisPopUp)
+            formRow("Emphasis", emphasisPopUp),
+            formRow("Zoom", zoomSlider)
         ])
         rows.orientation = .vertical
         rows.alignment = .leading
@@ -114,6 +116,10 @@ final class InspectorContent: NSViewController, PaletteContent {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        // Zoom is view state, not an edit: it follows the slider live.
+        zoomSlider.onChange = { [weak self] value, _ in
+            self?.model?.zoomPercent = Int(value)
+        }
         sizeField.onCommit = { [weak self] text in self?.commitSize(text) }
         colorWell.target = self
         colorWell.action = #selector(colorChanged)
@@ -124,9 +130,17 @@ final class InspectorContent: NSViewController, PaletteContent {
     // MARK: PaletteContent
 
     func retarget(to target: GalleryModel?) {
+        let center = NotificationCenter.default
+        center.removeObserver(self, name: GalleryModel.didChange, object: nil)
         model = target
+        if let target {
+            center.addObserver(self, selector: #selector(modelDidChange(_:)),
+                               name: GalleryModel.didChange, object: target)
+        }
         sync()
     }
+
+    @objc private func modelDidChange(_ notification: Notification) { sync() }
 
     func paletteDidPresent(_ presentation: PalettePresentation) { sync() }
 
@@ -182,7 +196,9 @@ final class InspectorContent: NSViewController, PaletteContent {
         sizeField.isEnabled = active
         colorWell.isEnabled = active
         emphasisPopUp.isEnabled = active
+        zoomSlider.isEnabled = active
         guard let model else { return }
+        zoomSlider.value = Double(model.zoomPercent)
         sizeField.stringValue = GalleryController.trimmed(model.size)
         colorWell.color = model.color
         let specimen = model.specimen
@@ -201,16 +217,50 @@ enum GalleryPaletteKind {
 @MainActor
 final class SwatchesContent: NSViewController, PaletteContent {
 
-    private static let inks: [NSColor] = [
+    private static let defaultInks: [NSColor] = [
         .black, .darkGray, .systemRed, .systemOrange, .systemGreen, .systemBlue, .systemPurple
     ]
+    private static let maximumInks = 9
 
     private weak var model: GalleryModel?
+    private var inks = SwatchesContent.defaultInks
     private var buttons: [NSButton] = []
+    private let row = NSStackView()
+    private(set) lazy var buttonBar = ClassicPaletteButtonBar(
+        items: [.init(id: "add", title: "Add the Current Ink",
+                      image: Self.symbol("plus", "Add")) { [weak self] in self?.addInk() }],
+        trailingItems: [.init(id: "remove", title: "Remove the Last Added Ink",
+                              image: Self.symbol("minus", "Remove")) { [weak self] in self?.removeInk() }])
+
+    private static func symbol(_ name: String, _ description: String) -> NSImage {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: description) ?? NSImage()
+        image.isTemplate = true
+        return image
+    }
 
     override func loadView() {
         let root = ClassicPanelView()
-        buttons = Self.inks.enumerated().map { index, ink in
+        row.spacing = 6
+        row.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        rebuildRow()
+        for view in [row, buttonBar] as [NSView] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            root.addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: root.topAnchor),
+            row.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            buttonBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            buttonBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            buttonBar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
+        view = root
+        syncButtons()
+    }
+
+    private func rebuildRow() {
+        for button in buttons { row.removeView(button) }
+        buttons = inks.enumerated().map { index, ink in
             let button = NSButton(title: "", target: self, action: #selector(pick(_:)))
             button.tag = index
             button.isBordered = false
@@ -221,28 +271,44 @@ final class SwatchesContent: NSViewController, PaletteContent {
             button.setAccessibilityLabel("Ink \(index + 1)")
             button.widthAnchor.constraint(equalToConstant: 22).isActive = true
             button.heightAnchor.constraint(equalToConstant: 22).isActive = true
+            button.isEnabled = model != nil
             return button
         }
-        let row = NSStackView(views: buttons)
-        row.spacing = 6
-        row.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-        row.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(row)
-        NSLayoutConstraint.activate([
-            row.topAnchor.constraint(equalTo: root.topAnchor),
-            row.leadingAnchor.constraint(equalTo: root.leadingAnchor)
-        ])
-        view = root
+        for button in buttons { row.addArrangedSubview(button) }
     }
 
     func retarget(to target: GalleryModel?) {
         model = target
         for button in buttons { button.isEnabled = target != nil }
+        syncButtons()
     }
 
     @objc private func pick(_ sender: NSButton) {
-        guard Self.inks.indices.contains(sender.tag) else { return }
-        model?.edit { $0.color = Self.inks[sender.tag] }
+        guard inks.indices.contains(sender.tag) else { return }
+        model?.edit { $0.color = inks[sender.tag] }
+    }
+
+    // MARK: Button bar
+
+    var inkCount: Int { inks.count }
+
+    private func addInk() {
+        guard let model, inks.count < Self.maximumInks else { return }
+        inks.append(model.color)
+        rebuildRow()
+        syncButtons()
+    }
+
+    private func removeInk() {
+        guard inks.count > Self.defaultInks.count else { return }
+        inks.removeLast()
+        rebuildRow()
+        syncButtons()
+    }
+
+    private func syncButtons() {
+        buttonBar.setEnabled(model != nil && inks.count < Self.maximumInks, forItem: "add")
+        buttonBar.setEnabled(inks.count > Self.defaultInks.count, forItem: "remove")
     }
 }
 

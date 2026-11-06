@@ -43,6 +43,11 @@ Run `swift run RigiGallery` for the executable examples.
   controls. Let long palette bodies scroll rather than collapse or clip.
 - Status is concise contextual information on the left, zoom on the right.
   Hover help temporarily replaces the normal message and clears on exit.
+  Between them, `StatusBarView` can show accessory views (an information
+  pop-up, say) and a progress bar with a cancel button for long operations.
+  An application with many zoom levels can make the percentage editable
+  (`isZoomEditable`); it then decides the zoom and reports it back with
+  `setZoom(percent:)`.
 
 ## Pick the control by its behavior
 
@@ -71,6 +76,15 @@ Run `swift run RigiGallery` for the executable examples.
   never changes its colors itself: the application sets both, including
   after a swap or reset. Name the shortcuts the application handles, such as
   X and D, through `swapShortcut` and `resetShortcut`.
+- `ClassicValueSlider` is a labelled slider with a number field and unit for
+  a bounded value such as a size, an opacity or a color component. Record
+  undo on `.committed`, so a drag is one step; `.tracking` is for live
+  preview. Typed values are clamped to the range; text that is not a number
+  puts the shown value back.
+- `ClassicPaletteButtonBar` is the strip of small icon buttons at a palette's
+  foot: create and duplicate at the left, delete at the right. Every item
+  needs a title, which is its tool tip and its VoiceOver name. Disable items
+  that do not apply to the selection rather than hiding them.
 
 Use tooltips for compact controls, but do not rely on them as the only label.
 Each icon needs an accessibility description. A mixed value is distinct from
