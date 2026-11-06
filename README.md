@@ -60,6 +60,7 @@ presentation before exiting. CI also captures a gallery PNG as an artifact.
 |---|---|
 | Appearance and dimensions | `ClassicChrome`, `ClassicText`, `ClassicMetrics` |
 | Native toolbar/inspector controls | `ClassicToolControl`, `ClassicToolbarButton`, `ClassicPopUpButton`, `ClassicColorWell` |
+| Tool palettes | `ClassicToolGrid`, `ClassicColorPair` |
 | Formatting controls | `ClassicSegmentedControl`, `ClassicPopUp`, `ClassicChooserControl`, `ClassicSizeField`, `ClassicButton` |
 | Surfaces | `ClassicWindow`, `ClassicBarView`, `ClassicPanelView`, `ClassicInsetBox`, `ClassicRuleView`, `EtchedSeparatorView` |
 | Status and pickers | `StatusBarView`, `PickerItem`, `PickerListView`, `TryOnPopover` |
