@@ -42,9 +42,9 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     XCTAssertLessThanOrEqual(lastTab.maxX, chrome.menuButtonRect.minX)
   }
 
-  /// The view half of the triangle's hit area: no band or tab view lies over
-  /// it. The window half, AppKit's own resize zones, is kept off by the
-  /// style mask (PalettePanelTests).
+  /// The view half of the triangle's hit area: no band, band cursor or tab
+  /// lies over it. The window half, AppKit's own resize zones, is kept off
+  /// by the style mask (PalettePanelTests).
   func testEveryPointOfTheTriangleTakesTheClickRatherThanTheResizeBand() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     let a = makePalette("a", title: "Alpha", dock: dock, menu: ["New", "Delete"],
@@ -56,6 +56,15 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     XCTAssertTrue(chrome.showsMenuButton)
 
     let rect = chrome.menuButtonRect
+    // Nor does a resize cursor show anywhere over it: pointer and press
+    // agree on what the triangle's points do.
+    let border = try XCTUnwrap(chrome.subviews.first { $0 is PaletteResizeBorderView })
+    let triangleInBorder = border.convert(rect, from: chrome)
+    for band in PaletteResizeBorderView.cursorBands(in: border.bounds) {
+      XCTAssertFalse(band.rect.intersects(triangleInBorder),
+                     "a resize cursor band \(band.rect) reaches the triangle \(triangleInBorder)")
+    }
+
     var x = rect.minX + 0.5
     while x < rect.maxX {
       let point = chrome.convert(NSPoint(x: x, y: rect.midY), to: nil)

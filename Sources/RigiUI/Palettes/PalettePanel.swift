@@ -299,11 +299,6 @@ final class PaletteResizeBorderView: NSView {
   /// left band; without this those pixels would start a resize.
   weak var interactiveSibling: NSView?
 
-  /// Targets the chrome draws rather than builds from views — the title
-  /// bar's menu triangle — whose hit areas also win over the bands, in the
-  /// superview's coordinates.
-  var drawnTargets: () -> [NSRect] = { [] }
-
   private var drag: ResizeDrag?
 
   /// The overlay covers the whole palette, so anything that is not on a band
@@ -313,9 +308,6 @@ final class PaletteResizeBorderView: NSView {
     if let sibling = interactiveSibling,
       convert(sibling.bounds, from: sibling).contains(localPoint)
     {
-      return nil
-    }
-    if drawnTargets().contains(where: { convert($0, from: superview).contains(localPoint) }) {
       return nil
     }
     guard !Self.edges(at: localPoint, in: bounds).isEmpty else { return nil }

@@ -211,10 +211,6 @@ public final class PaletteChromeView: NSView {
         let border = PaletteResizeBorderView()
         resizeBorder = border
         border.interactiveSibling = closeButton
-        border.drawnTargets = { [weak self] in
-            guard let self, self.showsMenuButton else { return [] }
-            return [self.menuButtonRect]
-        }
         border.translatesAutoresizingMaskIntoConstraints = false
         addSubview(border)
         NSLayoutConstraint.activate([
@@ -358,10 +354,13 @@ public final class PaletteChromeView: NSView {
         tabRects.firstIndex { $0.contains(point) }
     }
 
-    /// Where the menu triangle sits and takes clicks: the bar's right end.
+    /// Where the menu triangle sits and takes clicks: the bar's right end,
+    /// stopping where a resizable palette's right band begins, so the
+    /// pointer and a press agree on every point.
     var menuButtonRect: NSRect {
         let bar = titleBarRect
-        return NSRect(x: bar.maxX - 18, y: bar.minY, width: 16, height: bar.height)
+        let maxX = bar.maxX - PaletteResizeBorderView.bandWidth
+        return NSRect(x: bar.maxX - 18, y: bar.minY, width: maxX - (bar.maxX - 18), height: bar.height)
     }
 
     private func drawMenuButton() {
