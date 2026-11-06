@@ -38,8 +38,12 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
   /// The floating form's body, once it has been made.
   var panelContentViewController: NSViewController? { panelContent?.viewController }
 
-  /// The floating form's palette menu, if its content offers one.
-  var panelMenu: NSMenu? { panelContent?.menu }
+  /// The floating form's palette menu, if its content offers one with
+  /// something in it.
+  var panelMenu: NSMenu? {
+    guard let menu = panelContent?.menu, !menu.items.isEmpty else { return nil }
+    return menu
+  }
 
   /// The panel the floating form shows in. Module-internal; tests read it.
   var hostingPanel: PalettePanel? { dock.panel(showing: self) }
@@ -154,6 +158,8 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
 
     if presentation == .panel || detachmentPrepared {
       panelContent?.retarget()
+      // A content may offer a menu only for some targets.
+      dock.paletteMenuMayHaveChanged(self)
     }
   }
 

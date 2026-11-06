@@ -57,6 +57,39 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     XCTAssertTrue(menu.items.contains { $0.title == "Close Alpha" })
   }
 
+  func testTheTriangleFollowsWhetherTheContentHasAMenuForItsTarget() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    var target: NSObject? = NSObject()
+    let palette = Palette(
+      definition: PaletteDefinition(
+        kind: kind("t"), title: "Targeted", contentSize: NSSize(width: 220, height: 160)),
+      target: { target },
+      makeContent: { TargetMenuContent() },
+      dock: dock
+    )
+    palettes.append(palette)
+    palette.showPanel()
+    let chrome = try XCTUnwrap(palette.hostingPanel).chrome
+    XCTAssertTrue(chrome.showsMenuButton)
+
+    // The front document closes: the content has nothing to offer.
+    target = nil
+    palette.retarget()
+    XCTAssertFalse(chrome.showsMenuButton)
+
+    target = NSObject()
+    palette.retarget()
+    XCTAssertTrue(chrome.showsMenuButton)
+  }
+
+  func testAnEmptyMenuShowsNoTriangle() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let a = makePalette("a", title: "Alpha", dock: dock, menu: [])
+    a.showPanel()
+
+    XCTAssertFalse(try XCTUnwrap(a.hostingPanel).chrome.showsMenuButton)
+  }
+
   func testTheTitleBarMenusCommandsReachTheDock() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
@@ -233,4 +266,22 @@ private final class MenuTestContent: NSViewController, PaletteContent {
   var paletteMenu: NSMenu? { ownMenu }
 
   func retarget(to target: NSObject?) {}
+}
+
+/// Offers a menu only while it has a target, as a document-bound palette would.
+@MainActor
+private final class TargetMenuContent: NSViewController, PaletteContent {
+  typealias Target = NSObject
+  private var target: NSObject?
+
+  override func loadView() { view = NSView() }
+
+  var paletteMenu: NSMenu? {
+    guard target != nil else { return nil }
+    let menu = NSMenu()
+    menu.addItem(withTitle: "Act", action: nil, keyEquivalent: "")
+    return menu
+  }
+
+  func retarget(to target: NSObject?) { self.target = target }
 }

@@ -636,6 +636,16 @@ final class PaletteDock: NSObject {
     scheduleSave()
   }
 
+  /// Shows or hides the triangle after `palette`'s content was retargeted,
+  /// when it is the palette its panel shows.
+  func paletteMenuMayHaveChanged(_ palette: Palette) {
+    guard let id = groupID(of: palette), displayedPalette(of: id) === palette,
+      let chrome = panels[id]?.panel.chrome
+    else { return }
+
+    chrome.showsMenuButton = palette.panelMenu != nil
+  }
+
   /// Opens the shown palette's own menu under its title bar's triangle.
   func popUpPaletteMenu(forGroup id: String) {
     guard let panel = panels[id]?.panel, let menu = displayedPalette(of: id)?.panelMenu else {
@@ -655,7 +665,7 @@ final class PaletteDock: NSObject {
       ?? (tabs.count == 1 ? tabs[0] : nil)
 
     // The palette's own commands come first, as in its triangle's menu.
-    if let palette, let own = palette.panelMenu, !own.items.isEmpty {
+    if let palette, let own = palette.panelMenu {
       let item = NSMenuItem(title: palette.definition.title, action: nil, keyEquivalent: "")
       // A copy: the content may hand out one menu it keeps, and a menu can
       // hang under one item only.
