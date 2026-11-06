@@ -169,11 +169,14 @@ final class PaletteTests: XCTestCase {
     let popoverContent = try XCTUnwrap(recorder.contents.first)
 
     palette.showPanel()
-    drainRunLoop()
+    // The panel opens once the popover's close animation ends, which can
+    // take longer than drainRunLoop's half second on a busy machine.
+    runRunLoop(until: { recorder.contents.count >= 2 })
 
     XCTAssertEqual(recorder.contents.count, 2)
+    let panelContent = try XCTUnwrap(recorder.contents.dropFirst().first)
     XCTAssertFalse(
-      recorder.contents[1].paletteViewController === popoverContent.paletteViewController,
+      panelContent.paletteViewController === popoverContent.paletteViewController,
       "A palette content factory must create distinct view controllers"
     )
     XCTAssertEqual(palette.presentation, .panel)
@@ -235,6 +238,14 @@ final class PaletteTests: XCTestCase {
       title: "Palette Test",
       contentSize: NSSize(width: 300, height: 320)
     )
+  }
+
+  /// Runs the run loop until `condition` holds or `timeout` passes.
+  private func runRunLoop(until condition: () -> Bool, timeout: TimeInterval = 5) {
+    let deadline = Date(timeIntervalSinceNow: timeout)
+    while !condition() && Date() < deadline {
+      RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
+    }
   }
 
   private func drainRunLoop() {
