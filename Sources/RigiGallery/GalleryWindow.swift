@@ -294,9 +294,22 @@ final class GalleryController: NSObject, NSWindowDelegate {
         PaletteCenter.shared.resetLayout()
     }
 
+    static let galleryWorkspace = "Gallery"
+
+    @objc func saveWorkspace(_ sender: Any?) {
+        PaletteCenter.shared.saveWorkspace(named: Self.galleryWorkspace)
+    }
+
+    @objc func applyWorkspace(_ sender: Any?) {
+        PaletteCenter.shared.applyWorkspace(named: Self.galleryWorkspace)
+    }
+
     @objc func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(togglePalettes(_:)) {
             item.title = PaletteCenter.shared.isHidingPalettes ? "Show Palettes" : "Hide Palettes"
+        }
+        if item.action == #selector(applyWorkspace(_:)) {
+            return PaletteCenter.shared.workspaceNames.contains(Self.galleryWorkspace)
         }
         return true
     }

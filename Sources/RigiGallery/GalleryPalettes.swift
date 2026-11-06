@@ -130,6 +130,25 @@ final class InspectorContent: NSViewController, PaletteContent {
 
     func paletteDidPresent(_ presentation: PalettePresentation) { sync() }
 
+    /// The palette's own commands, from the triangle in its title bar.
+    var paletteMenu: NSMenu? {
+        let menu = NSMenu()
+        let reset = menu.addItem(withTitle: "Reset Size and Emphasis",
+                                 action: #selector(resetSpecimen), keyEquivalent: "")
+        reset.target = self
+        reset.isEnabled = model != nil
+        menu.autoenablesItems = false
+        return menu
+    }
+
+    @objc private func resetSpecimen() {
+        model?.edit {
+            $0.size = 18
+            $0.bold = false
+            $0.italic = false
+        }
+    }
+
     // MARK: Edits (each a committed, undoable change on the model)
 
     private func commitSize(_ text: String) {

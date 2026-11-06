@@ -104,6 +104,11 @@ showing one palette shows its plain centered title instead.
   Picking a different tab of a collapsed panel expands it.
 - The close dot, Escape and Command-W close every palette in the panel. The
   bar's contextual menu closes or separates one tab and offers collapse.
+- A palette with commands of its own (new, duplicate, delete, options)
+  offers them through `paletteMenu`: a small triangle at the right end of
+  the bar opens it, and the bar's contextual menu repeats it. Keep it to
+  commands about the palette's content; window commands stay in the app's
+  menus.
 - Tabs share the panel's width so the strip never moves under the pointer when
   switching; the height is the shown palette's own. The panel is resizable
   while a resizable palette shows.
@@ -112,6 +117,12 @@ showing one palette shows its plain centered title instead.
   palette, for an application's Tab key; `restoreAll()` brings them back.
 - The arrangement persists in the application's defaults.
   `PaletteCenter.resetLayout()` returns to the application's default groups.
+- Workspaces are named arrangements the person saves: groups, tab order,
+  places, collapse and docking, and which palettes float. Applying one
+  closes the floating palettes and reopens the workspace's in its places;
+  panels whose saved place is on no screen come back onto the main one.
+  Offer them in the Window menu: the saved names, Save Workspace…, and a
+  way to delete one.
 
 ## Tear-off contract
 

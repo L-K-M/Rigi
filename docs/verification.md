@@ -15,9 +15,10 @@ swift build -c release
 
 The shared tests cover palette content sizing, frame restoration, resize bands,
 typed retargeting, presentation lifecycle, palette groups, tab drags, snapping,
-docking, collapse, hiding, layout persistence and validation, tool grid
-geometry, selection and accessibility, color pair hit areas and reports,
-picker selection, and preview finish callbacks. The gallery smoke check exercises the public API from another target.
+docking, collapse, hiding, layout persistence and validation, palette menus,
+workspaces and their validation, tool grid geometry, selection and
+accessibility, color pair hit areas and reports, picker selection, and
+preview finish callbacks. The gallery smoke check exercises the public API from another target.
 CI retains a gallery screenshot for visual inspection.
 
 App CI must also build and test Lucerne and Sion against the pinned revision.

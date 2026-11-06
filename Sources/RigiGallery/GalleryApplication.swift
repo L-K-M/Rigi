@@ -49,6 +49,10 @@ enum GalleryApplication {
                            action: #selector(GalleryController.showSwatches(_:)), keyEquivalent: "")
         windowMenu.addItem(withTitle: "Hide Palettes",
                            action: #selector(GalleryController.togglePalettes(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: "Save Workspace",
+                           action: #selector(GalleryController.saveWorkspace(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: "Apply Saved Workspace",
+                           action: #selector(GalleryController.applyWorkspace(_:)), keyEquivalent: "")
         windowMenu.addItem(withTitle: "Reset Palette Layout",
                            action: #selector(GalleryController.resetPaletteLayout(_:)), keyEquivalent: "")
         windowItem.submenu = windowMenu

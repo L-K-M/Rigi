@@ -121,6 +121,30 @@ enum GallerySmokeTest {
         controller.model.undo.undo()
         settle()
 
+        // The inspector's own menu shows as a triangle in its title bar.
+        let inspectorPanel = NSApp.windows.first {
+            $0 is ClassicPaletteWindow && $0.isVisible && ($0.title == "Inspector" || $0.title == "Swatches")
+        }
+        controller.inspectorPalette.bringToFront()
+        settle()
+        let menuButton = (inspectorPanel?.contentView?.accessibilityChildren() ?? [])
+            .compactMap { $0 as? NSAccessibilityElement }
+            .first { $0.accessibilityRole() == .menuButton }
+        check(menuButton?.accessibilityLabel() == "Inspector Menu", "palette menu triangle")
+
+        // A workspace brings back the palettes it saved.
+        let workspace = "Smoke \(ProcessInfo.processInfo.processIdentifier)"
+        center.saveWorkspace(named: workspace)
+        center.closeAll()
+        settle()
+        check(!controller.inspectorPalette.isPresented, "palettes closed")
+        check(center.applyWorkspace(named: workspace), "workspace applied")
+        settle()
+        check(controller.inspectorPalette.isFloating && controller.swatchesPalette.isFloating,
+              "workspace reopens its palettes")
+        center.deleteWorkspace(named: workspace)
+        check(!center.workspaceNames.contains(workspace), "workspace deleted")
+
         // Hiding keeps palettes open; restoring brings their panel back.
         center.hideAll()
         check(center.isHidingPalettes, "palettes hidden")
