@@ -209,6 +209,31 @@ final class PalettePanel: ClassicPaletteWindow {
     }
   }
 
+  // MARK: - Accessibility
+
+  /// The window never carries `.resizable` (see `apply(_:)`), and AppKit
+  /// then reports its size to assistive apps as fixed. A palette with
+  /// resize bands answers for itself and takes a size as a drag of its
+  /// right and bottom bands would: the top-left corner stays put and the
+  /// size limits hold. These are the legacy calls: AppKit asks them, not
+  /// the NSAccessibility protocol, whether a window's size is settable.
+  @available(macOS, deprecated: 10.10, message: "AppKit still asks windows through this call")
+  override func accessibilityIsAttributeSettable(_ attribute: NSAccessibility.Attribute) -> Bool {
+    guard attribute == .size else { return super.accessibilityIsAttributeSettable(attribute) }
+
+    return chrome.isResizeBorderEnabled
+  }
+
+  @available(macOS, deprecated: 10.10, message: "AppKit still asks windows through this call")
+  override func accessibilitySetValue(_ value: Any?, forAttribute attribute: NSAccessibility.Attribute) {
+    guard attribute == .size, chrome.isResizeBorderEnabled, let size = (value as? NSValue)?.sizeValue else {
+      super.accessibilitySetValue(value, forAttribute: attribute)
+      return
+    }
+
+    setFrame(PaletteResizeBorderView.frame(frame, resizedTo: size, of: self), display: true)
+  }
+
   private func requestClose() {
     if let onCloseRequest {
       onCloseRequest()
@@ -274,6 +299,11 @@ final class PaletteResizeBorderView: NSView {
   /// left band; without this those pixels would start a resize.
   weak var interactiveSibling: NSView?
 
+  /// Targets the chrome draws rather than builds from views — the title
+  /// bar's menu triangle — whose hit areas also win over the bands, in the
+  /// superview's coordinates.
+  var drawnTargets: () -> [NSRect] = { [] }
+
   private var drag: ResizeDrag?
 
   /// The overlay covers the whole palette, so anything that is not on a band
@@ -283,6 +313,9 @@ final class PaletteResizeBorderView: NSView {
     if let sibling = interactiveSibling,
       convert(sibling.bounds, from: sibling).contains(localPoint)
     {
+      return nil
+    }
+    if drawnTargets().contains(where: { convert($0, from: superview).contains(localPoint) }) {
       return nil
     }
     guard !Self.edges(at: localPoint, in: bounds).isEmpty else { return nil }
@@ -470,6 +503,18 @@ final class PaletteResizeBorderView: NSView {
     maximum: CGFloat
   ) -> CGFloat {
     min(max(value, minimum), max(minimum, maximum))
+  }
+
+  /// `frame` grown or shrunk to `size` from its right and bottom edges,
+  /// within `window`'s size limits, as dragging those bands would.
+  static func frame(_ frame: NSRect, resizedTo size: NSSize, of window: NSWindow) -> NSRect {
+    resizedFrame(
+      frame,
+      edges: [.right, .bottom],
+      translation: NSSize(width: size.width - frame.width, height: frame.height - size.height),
+      minimum: frameSize(forContentSize: window.contentMinSize, of: window),
+      maximum: frameSize(forContentSize: window.contentMaxSize, of: window)
+    )
   }
 
   private static func frameSize(forContentSize contentSize: NSSize, of window: NSWindow) -> NSSize {

@@ -347,6 +347,33 @@ final class PalettePanelTests: XCTestCase {
     XCTAssertTrue(panel.chrome.isResizeBorderEnabled)
   }
 
+  /// Without the resizable bit AppKit reports a window's size as fixed to
+  /// assistive apps, so the panel answers for itself: a resizable palette
+  /// takes a size from VoiceOver as a drag of its right and bottom bands
+  /// would, top-left corner staying put and the limits holding.
+  @available(macOS, deprecated: 10.10, message: "Drives the legacy calls AppKit asks windows")
+  func testAssistiveAppsCanResizeAResizablePaletteAsTheBandsDo() throws {
+    _ = NSApplication.shared
+    let fixed = makePanel(kind: "tests.ax.fixed")
+    let resizable = makePanel(
+      kind: "tests.ax.resizable",
+      sizing: .resizable(minimumContentSize: PalettePanelTestGeometry.minimumContentSize)
+    )
+    XCTAssertFalse(fixed.accessibilityIsAttributeSettable(.size))
+    XCTAssertTrue(resizable.accessibilityIsAttributeSettable(.size))
+
+    let start = resizable.frame
+    let wider = NSSize(width: start.width + 40, height: start.height + 30)
+    resizable.accessibilitySetValue(NSValue(size: wider), forAttribute: .size)
+    XCTAssertEqual(resizable.frame.size, wider)
+    XCTAssertEqual(resizable.frame.minX, start.minX)
+    XCTAssertEqual(resizable.frame.maxY, start.maxY)
+
+    resizable.accessibilitySetValue(NSValue(size: NSSize(width: 1, height: 1)), forAttribute: .size)
+    let minimum = resizable.frameRect(forContentRect: NSRect(origin: .zero, size: resizable.contentMinSize)).size
+    XCTAssertEqual(resizable.frame.size, minimum)
+  }
+
   private func makePanel(
     kind: String = "tests.inspector",
     sizing: PaletteSizing = .fixed

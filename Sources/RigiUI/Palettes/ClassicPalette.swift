@@ -211,6 +211,10 @@ public final class PaletteChromeView: NSView {
         let border = PaletteResizeBorderView()
         resizeBorder = border
         border.interactiveSibling = closeButton
+        border.drawnTargets = { [weak self] in
+            guard let self, self.showsMenuButton else { return [] }
+            return [self.menuButtonRect]
+        }
         border.translatesAutoresizingMaskIntoConstraints = false
         addSubview(border)
         NSLayoutConstraint.activate([

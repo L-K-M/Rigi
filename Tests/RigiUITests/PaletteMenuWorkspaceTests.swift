@@ -60,8 +60,10 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     while x < rect.maxX {
       let point = chrome.convert(NSPoint(x: x, y: rect.midY), to: nil)
       let hit = content.hitTest(point)
+      // The chrome draws the triangle and takes its presses itself; the
+      // band overlay and the tabs are views of their own.
       XCTAssertTrue(
-        hit.map { $0 === chrome || $0.isDescendant(of: chrome) } ?? false,
+        hit === chrome,
         "a press at \(x - rect.minX) pt into the triangle's \(rect.width) pt goes to \(String(describing: hit))")
       x += 1
     }
