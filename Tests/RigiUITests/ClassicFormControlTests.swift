@@ -194,6 +194,12 @@ final class ClassicFormControlTests: XCTestCase {
     XCTAssertEqual(StatusBarView.zoomPercent(from: "0.5"), 1)
   }
 
+  func testAHugeNegativeTypedZoomIsRefusedRatherThanTrapping() {
+    XCTAssertNil(StatusBarView.zoomPercent(from: "-1e20"))
+    XCTAssertNil(StatusBarView.zoomPercent(from: "-99999999999999999999"))
+    XCTAssertNil(StatusBarView.zoomPercent(from: "-5"))
+  }
+
   func testMoreFractionDigitsThanADoubleHoldsKeepTheValueFinite() {
     let precise = ClassicValueSlider(title: "x", range: 0...1, value: 0.5, fractionDigits: 400)
     XCTAssertEqual(precise.value, 0.5)
