@@ -78,6 +78,27 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     }
   }
 
+  /// The triangle's hit area gives way to a resize band only where there
+  /// is one: a fixed palette keeps the whole 16 pt, and the triangle is
+  /// drawn in the same place either way.
+  func testOnlyAResizablePaletteNarrowsTheTriangleForItsBand() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let fixed = makePalette("fixed", title: "Fixed", dock: dock, menu: ["New"])
+    let resizable = makePalette("sized", title: "Sized", dock: dock, menu: ["New"],
+                                sizing: .resizable(minimumContentSize: NSSize(width: 120, height: 80)))
+    fixed.showPanel()
+    resizable.showPanel()
+    let fixedChrome = try XCTUnwrap(fixed.hostingPanel).chrome
+    let sizedChrome = try XCTUnwrap(resizable.hostingPanel).chrome
+
+    XCTAssertEqual(fixedChrome.menuButtonRect.width, 16)
+    XCTAssertEqual(fixedChrome.menuButtonRect.maxX, fixedChrome.titleBarRect.maxX - 2)
+    XCTAssertEqual(sizedChrome.menuButtonRect.maxX,
+                   sizedChrome.titleBarRect.maxX - PaletteResizeBorderView.bandWidth)
+    XCTAssertEqual(fixedChrome.titleBarRect.maxX - fixedChrome.menuGlyphCenterX,
+                   sizedChrome.titleBarRect.maxX - sizedChrome.menuGlyphCenterX)
+  }
+
   func testTheTitleBarMenuLeadsWithThePalettesOwnCommands() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     let a = makePalette("a", title: "Alpha", dock: dock, menu: ["New", "Delete"])

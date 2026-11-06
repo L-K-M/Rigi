@@ -201,6 +201,8 @@ public final class PaletteChromeView: NSView {
             installResizeBorder()
         }
         resizeBorder?.isHidden = !enabled
+        // The menu triangle's click area depends on the band.
+        updateMenuButtonAccessibility()
     }
 
     var isResizeBorderEnabled: Bool { resizeBorder.map { !$0.isHidden } ?? false }
@@ -243,7 +245,7 @@ public final class PaletteChromeView: NSView {
         NSLayoutConstraint.activate(declaredSizeConstraints)
     }
 
-    private var titleBarRect: NSRect {
+    var titleBarRect: NSRect {
         NSRect(x: 0, y: bounds.height - Self.titleBarHeight,
                width: bounds.width, height: Self.titleBarHeight)
     }
@@ -354,20 +356,24 @@ public final class PaletteChromeView: NSView {
         tabRects.firstIndex { $0.contains(point) }
     }
 
-    /// Where the menu triangle sits and takes clicks: the bar's right end,
-    /// stopping where a resizable palette's right band begins, so the
-    /// pointer and a press agree on every point.
+    /// Where the menu triangle takes clicks: the bar's right end. While a
+    /// resizable palette shows its right band, the area stops where the band
+    /// begins, so the pointer and a press agree on every point.
     var menuButtonRect: NSRect {
         let bar = titleBarRect
-        let maxX = bar.maxX - PaletteResizeBorderView.bandWidth
-        return NSRect(x: bar.maxX - 18, y: bar.minY, width: maxX - (bar.maxX - 18), height: bar.height)
+        let minX = bar.maxX - 18
+        let maxX = isResizeBorderEnabled ? bar.maxX - PaletteResizeBorderView.bandWidth : bar.maxX - 2
+        return NSRect(x: minX, y: bar.minY, width: maxX - minX, height: bar.height)
     }
+
+    /// The triangle's centre, the same with or without a band.
+    var menuGlyphCenterX: CGFloat { titleBarRect.maxX - 10 }
 
     private func drawMenuButton() {
         let rect = menuButtonRect
         ClassicChrome.arrowColor(true).setFill()
         let triangle = NSBezierPath()
-        let midX = rect.midX.rounded(), midY = rect.midY.rounded()
+        let midX = menuGlyphCenterX.rounded(), midY = rect.midY.rounded()
         triangle.move(to: NSPoint(x: midX - 3.5, y: midY + 2))
         triangle.line(to: NSPoint(x: midX + 3.5, y: midY + 2))
         triangle.line(to: NSPoint(x: midX, y: midY - 2))
