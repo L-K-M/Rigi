@@ -187,4 +187,18 @@ final class ClassicFormControlTests: XCTestCase {
     let shown = try XCTUnwrap(bar.button(for: "add")?.image)
     XCTAssertFalse(shown.isTemplate, "drawn already tinted, since the bezel draws images as they are")
   }
+
+  func testATypedZoomThatRoundsToZeroIsRefused() {
+    XCTAssertNil(StatusBarView.zoomPercent(from: "0.4"))
+    XCTAssertNil(StatusBarView.zoomPercent(from: ".4%"))
+    XCTAssertEqual(StatusBarView.zoomPercent(from: "0.5"), 1)
+  }
+
+  func testMoreFractionDigitsThanADoubleHoldsKeepTheValueFinite() {
+    let precise = ClassicValueSlider(title: "x", range: 0...1, value: 0.5, fractionDigits: 400)
+    XCTAssertEqual(precise.value, 0.5)
+
+    let wide = ClassicValueSlider(title: "x", range: 0...1e300, value: 1e300, fractionDigits: 9)
+    XCTAssertEqual(wide.value, 1e300)
+  }
 }

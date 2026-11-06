@@ -216,9 +216,11 @@ public final class StatusBarView: NSView, NSTextFieldDelegate {
         let digits = text.trimmingCharacters(in: .whitespaces)
             .replacingOccurrences(of: "%", with: "")
             .trimmingCharacters(in: .whitespaces)
-        guard let value = Double(digits), value.isFinite, value > 0,
+        guard let value = Double(digits), value.isFinite,
               value <= Double(maximumTypedZoom) else { return nil }
-        return Int(value.rounded())
+        // Checked after rounding, so "0.4" is refused like "0".
+        let percent = Int(value.rounded())
+        return percent > 0 ? percent : nil
     }
 
     @objc private func cancelClicked() {

@@ -63,12 +63,13 @@ public final class ClassicValueSlider: NSView, NSTextFieldDelegate {
 
     /// `title` labels the row and names both controls for VoiceOver; nil
     /// leaves the label out, for a row whose label is elsewhere.
+    /// `fractionDigits` is limited to 0 through 15.
     public init(title: String?, range: ClosedRange<Double>, value: Double,
                 unit: String = "", fractionDigits: Int = 0) {
         precondition(range.lowerBound.isFinite && range.upperBound.isFinite,
                      "A value slider needs a finite range")
         self.range = range
-        self.fractionDigits = max(0, fractionDigits)
+        self.fractionDigits = min(max(0, fractionDigits), Self.maximumFractionDigits)
         currentValue = range.lowerBound
         titleLabel = NSTextField(labelWithString: title ?? "")
         unitLabel = NSTextField(labelWithString: unit)
@@ -210,10 +211,17 @@ public final class ClassicValueSlider: NSView, NSTextFieldDelegate {
         onChange?(next, phase)
     }
 
+    /// A Double holds about 15 significant decimal digits; more fraction
+    /// digits round nothing, and past about 308 the scale overflows.
+    static let maximumFractionDigits = 15
+
     private func normalized(_ raw: Double) -> Double {
         let clamped = min(max(raw, range.lowerBound), range.upperBound)
         let scale = pow(10, Double(fractionDigits))
-        return (clamped * scale).rounded() / scale
+        let scaled = clamped * scale
+        // A value too large to scale has no fraction digits left to round.
+        guard scaled.isFinite else { return clamped }
+        return scaled.rounded() / scale
     }
 
     private func syncControls() {
