@@ -364,6 +364,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
         specimenLabel.attributedStringValue = NSAttributedString(string: specimenText,
                                                                attributes: attributes)
         chooser.title = model.family
+        familyLabel.stringValue = model.family
         sizeField.stringValue = Self.trimmed(model.size)
         colorWell.color = model.color
         toolControl.setSelected(model.specimen.bold, forSegment: 0)

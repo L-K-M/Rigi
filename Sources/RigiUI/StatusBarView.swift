@@ -206,12 +206,18 @@ public final class StatusBarView: NSView, NSTextFieldDelegate {
         zoomField.stringValue = "\(zoomPercent)%"
     }
 
-    /// "250", "250%" or " 250 % ": a positive whole percentage.
+    /// The largest zoom a person can type; the application clamps to the
+    /// zooms it supports anyway, and anything past this is a typing slip.
+    static let maximumTypedZoom = 1_000_000
+
+    /// "250", "250%" or " 250 % ": a positive whole percentage up to
+    /// `maximumTypedZoom`.
     static func zoomPercent(from text: String) -> Int? {
         let digits = text.trimmingCharacters(in: .whitespaces)
             .replacingOccurrences(of: "%", with: "")
             .trimmingCharacters(in: .whitespaces)
-        guard let value = Double(digits), value.isFinite, value > 0 else { return nil }
+        guard let value = Double(digits), value.isFinite, value > 0,
+              value <= Double(maximumTypedZoom) else { return nil }
         return Int(value.rounded())
     }
 

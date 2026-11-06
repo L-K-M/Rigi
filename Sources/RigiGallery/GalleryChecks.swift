@@ -150,6 +150,9 @@ enum GallerySmokeTest {
         statusBar.onZoomTo?(250)
         check(controller.model.zoomPercent == 250, "status bar zoom typed")
         check(controller.familyLabel.superview != nil, "status bar accessory")
+        controller.model.edit { $0.family = "Georgia" }
+        check(controller.familyLabel.stringValue == "Georgia", "status bar accessory follows the family")
+        controller.model.undo.undo()
         statusBar.showProgress(fraction: 0.5)
         check(statusBar.isShowingProgress, "status bar progress")
         statusBar.hideProgress()

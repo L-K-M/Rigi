@@ -154,4 +154,37 @@ final class ClassicFormControlTests: XCTestCase {
     bar.setAccessoryViews([])
     XCTAssertFalse(row?.views.contains(info) ?? true)
   }
+
+  // MARK: - Review fixes
+
+  func testAHugeTypedZoomIsRefusedRatherThanOverflowing() {
+    XCTAssertNil(StatusBarView.zoomPercent(from: "1e20"))
+    XCTAssertNil(StatusBarView.zoomPercent(from: "99999999999999999999"))
+    XCTAssertEqual(StatusBarView.zoomPercent(from: "3200"), 3200)
+  }
+
+  func testKeyboardStepsOnTheSliderCommitLikeARelease() {
+    XCTAssertEqual(ClassicValueSlider.phase(after: .leftMouseDown), .tracking)
+    XCTAssertEqual(ClassicValueSlider.phase(after: .leftMouseDragged), .tracking)
+    XCTAssertEqual(ClassicValueSlider.phase(after: .leftMouseUp), .committed)
+    XCTAssertEqual(ClassicValueSlider.phase(after: .keyDown), .committed)
+    XCTAssertEqual(ClassicValueSlider.phase(after: nil), .committed)
+  }
+
+  func testASliderWithItsLabelElsewhereCanStillBeNamed() {
+    let slider = ClassicValueSlider(title: nil, range: 0...100, value: 5)
+    slider.accessibilityTitle = "Zoom"
+
+    XCTAssertEqual(slider.sliderControl.accessibilityLabel(), "Zoom")
+    XCTAssertEqual(slider.fieldControl.accessibilityLabel(), "Zoom value")
+  }
+
+  func testTemplateIconsInTheButtonBarTakeTheChromeGray() throws {
+    let image = try XCTUnwrap(NSImage(systemSymbolName: "plus", accessibilityDescription: nil))
+    image.isTemplate = true
+    let bar = ClassicPaletteButtonBar(items: [.init(id: "add", title: "Add", image: image) {}])
+
+    let shown = try XCTUnwrap(bar.button(for: "add")?.image)
+    XCTAssertFalse(shown.isTemplate, "drawn already tinted, since the bezel draws images as they are")
+  }
 }

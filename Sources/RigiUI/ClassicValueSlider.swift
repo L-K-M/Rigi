@@ -103,10 +103,8 @@ public final class ClassicValueSlider: NSView, NSTextFieldDelegate {
         unitLabel.font = .systemFont(ofSize: 11)
         unitLabel.isHidden = unitLabel.stringValue.isEmpty
 
-        if let title {
-            slider.setAccessibilityLabel(title)
-            field.setAccessibilityLabel("\(title) value")
-        }
+        accessibilityTitle = title
+        applyAccessibilityTitle()
 
         let row = NSStackView(views: [titleLabel, slider, field, unitLabel])
         row.spacing = 4
@@ -128,8 +126,27 @@ public final class ClassicValueSlider: NSView, NSTextFieldDelegate {
     // MARK: Changes
 
     @objc private func sliderMoved(_ sender: NSSlider) {
-        let ending = NSApp.currentEvent.map { $0.type == .leftMouseUp } ?? true
-        commit(sender.doubleValue, phase: ending ? .committed : .tracking)
+        commit(sender.doubleValue, phase: Self.phase(after: NSApp.currentEvent?.type))
+    }
+
+    /// A press or drag on the knob is still tracking; its release, an
+    /// arrow key, or any other way the slider moves is a finished change.
+    static func phase(after event: NSEvent.EventType?) -> Phase {
+        switch event {
+        case .leftMouseDown?, .leftMouseDragged?: return .tracking
+        default: return .committed
+        }
+    }
+
+    /// What VoiceOver calls the slider and its field; it starts as the
+    /// title. Set it when the row's label is not the slider's own.
+    public var accessibilityTitle: String? {
+        didSet { applyAccessibilityTitle() }
+    }
+
+    private func applyAccessibilityTitle() {
+        slider.setAccessibilityLabel(accessibilityTitle)
+        field.setAccessibilityLabel(accessibilityTitle.map { "\($0) value" })
     }
 
     @objc private func fieldCommitted(_ sender: NSTextField) {

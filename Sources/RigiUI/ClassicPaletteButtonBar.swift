@@ -75,7 +75,7 @@ public final class ClassicPaletteButtonBar: ClassicBarView {
         let target = ButtonAction(item.action)
         actions.append(target)
 
-        let button = ClassicToolbarButton(image: item.image, target: target,
+        let button = ClassicToolbarButton(image: Self.tinted(item.image), target: target,
                                           action: #selector(ButtonAction.run(_:)))
         button.imagePosition = .imageOnly
         button.toolTip = item.title
@@ -87,6 +87,21 @@ public final class ClassicPaletteButtonBar: ClassicBarView {
         ])
         buttons[item.id] = button
         return button
+    }
+
+    /// A template icon in the chrome's glyph gray: the bezel button draws
+    /// its image as it is, and a template's own color is black.
+    static func tinted(_ image: NSImage) -> NSImage {
+        guard image.isTemplate else { return image }
+
+        let tinted = NSImage(size: image.size, flipped: false) { bounds in
+            image.draw(in: bounds)
+            ClassicChrome.glyphColor(true).setFill()
+            bounds.fill(using: .sourceAtop)
+            return true
+        }
+        tinted.accessibilityDescription = image.accessibilityDescription
+        return tinted
     }
 
     /// The hairline that separates the strip from the palette body above.

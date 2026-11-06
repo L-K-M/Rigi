@@ -86,7 +86,11 @@ final class GalleryTearOffPalette: TearOffPalette {
 final class InspectorContent: NSViewController, PaletteContent {
 
     private weak var model: GalleryModel?
-    let zoomSlider = ClassicValueSlider(title: nil, range: 25...400, value: 100, unit: "%")
+    let zoomSlider: ClassicValueSlider = {
+        let slider = ClassicValueSlider(title: nil, range: 25...400, value: 100, unit: "%")
+        slider.accessibilityTitle = "Zoom"  // the row's label is formRow's
+        return slider
+    }()
     private let sizeField = ClassicSizeField(presets: GalleryController.sizePresets, width: 64)
     private let colorWell = ClassicColorWell(frame: .zero)
     private let emphasisPopUp = ClassicPopUpButton(frame: .zero, pullsDown: false)
