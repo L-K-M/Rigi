@@ -177,31 +177,61 @@ final class PalettePanel: ClassicPaletteWindow {
 
   var embeddedController: NSViewController? { paletteViewController.embeddedController }
 
-  /// Sets the style mask, resize bands and size limits for `sizing`. The
-  /// frame itself is the caller's to set: limits alone never move a window.
+  /// Sets the resize bands and size limits for `sizing`. The frame itself
+  /// is the caller's to set: limits alone never move a window.
+  ///
+  /// The window never carries `.resizable`, whatever the sizing. With it,
+  /// AppKit resizes even a borderless window from edge and corner zones of
+  /// its own: the top edge, which belongs to the title bar, and a corner
+  /// zone over the title bar's menu triangle that swallowed clicks on it
+  /// (seen on macOS 27). The palette's own bands do all the resizing.
   func apply(_ sizing: PalettePanelSizing) {
+    styleMask.remove(.resizable)
+
     switch sizing {
     case .fixed(let contentSize):
-      styleMask.remove(.resizable)
       chrome.setResizeBorderEnabled(false)
       paletteViewController.setCollapsed(false)
       contentMinSize = Self.panelSize(forContentSize: contentSize)
       contentMaxSize = contentMinSize
 
     case .resizable(let minimumContentSize):
-      styleMask.insert(.resizable)
       chrome.setResizeBorderEnabled(true)
       paletteViewController.setCollapsed(false)
       contentMinSize = Self.panelSize(forContentSize: minimumContentSize)
       contentMaxSize = PaletteMetrics.maximumContentSize
 
     case .collapsed(let width):
-      styleMask.remove(.resizable)
       chrome.setResizeBorderEnabled(false)
       paletteViewController.setCollapsed(true)
       contentMinSize = Self.panelSize(forContentSize: NSSize(width: width, height: 0))
       contentMaxSize = contentMinSize
     }
+  }
+
+  // MARK: - Accessibility
+
+  /// The window never carries `.resizable` (see `apply(_:)`), and AppKit
+  /// then reports its size to assistive apps as fixed. A palette with
+  /// resize bands answers for itself and takes a size as a drag of its
+  /// right and bottom bands would: the top-left corner stays put and the
+  /// size limits hold. These are the legacy calls: AppKit asks them, not
+  /// the NSAccessibility protocol, whether a window's size is settable.
+  @available(macOS, deprecated: 10.10, message: "AppKit still asks windows through this call")
+  override func accessibilityIsAttributeSettable(_ attribute: NSAccessibility.Attribute) -> Bool {
+    guard attribute == .size else { return super.accessibilityIsAttributeSettable(attribute) }
+
+    return chrome.isResizeBorderEnabled
+  }
+
+  @available(macOS, deprecated: 10.10, message: "AppKit still asks windows through this call")
+  override func accessibilitySetValue(_ value: Any?, forAttribute attribute: NSAccessibility.Attribute) {
+    guard attribute == .size, chrome.isResizeBorderEnabled, let size = (value as? NSValue)?.sizeValue else {
+      super.accessibilitySetValue(value, forAttribute: attribute)
+      return
+    }
+
+    setFrame(PaletteResizeBorderView.frame(frame, resizedTo: size, of: self), display: true)
   }
 
   private func requestClose() {
@@ -465,6 +495,18 @@ final class PaletteResizeBorderView: NSView {
     maximum: CGFloat
   ) -> CGFloat {
     min(max(value, minimum), max(minimum, maximum))
+  }
+
+  /// `frame` grown or shrunk to `size` from its right and bottom edges,
+  /// within `window`'s size limits, as dragging those bands would.
+  static func frame(_ frame: NSRect, resizedTo size: NSSize, of window: NSWindow) -> NSRect {
+    resizedFrame(
+      frame,
+      edges: [.right, .bottom],
+      translation: NSSize(width: size.width - frame.width, height: frame.height - size.height),
+      minimum: frameSize(forContentSize: window.contentMinSize, of: window),
+      maximum: frameSize(forContentSize: window.contentMaxSize, of: window)
+    )
   }
 
   private static func frameSize(forContentSize contentSize: NSSize, of window: NSWindow) -> NSSize {

@@ -42,6 +42,63 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     XCTAssertLessThanOrEqual(lastTab.maxX, chrome.menuButtonRect.minX)
   }
 
+  /// The view half of the triangle's hit area: no band, band cursor or tab
+  /// lies over it. The window half, AppKit's own resize zones, is kept off
+  /// by the style mask (PalettePanelTests).
+  func testEveryPointOfTheTriangleTakesTheClickRatherThanTheResizeBand() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let a = makePalette("a", title: "Alpha", dock: dock, menu: ["New", "Delete"],
+                        sizing: .resizable(minimumContentSize: NSSize(width: 120, height: 80)))
+    a.showPanel()
+    let panel = try XCTUnwrap(a.hostingPanel)
+    let chrome = panel.chrome
+    let content = try XCTUnwrap(panel.contentView)
+    XCTAssertTrue(chrome.showsMenuButton)
+
+    let rect = chrome.menuButtonRect
+    // Nor does a resize cursor show anywhere over it: pointer and press
+    // agree on what the triangle's points do.
+    let border = try XCTUnwrap(chrome.subviews.first { $0 is PaletteResizeBorderView })
+    let triangleInBorder = border.convert(rect, from: chrome)
+    for band in PaletteResizeBorderView.cursorBands(in: border.bounds) {
+      XCTAssertFalse(band.rect.intersects(triangleInBorder),
+                     "a resize cursor band \(band.rect) reaches the triangle \(triangleInBorder)")
+    }
+
+    var x = rect.minX + 0.5
+    while x < rect.maxX {
+      let point = chrome.convert(NSPoint(x: x, y: rect.midY), to: nil)
+      let hit = content.hitTest(point)
+      // The chrome draws the triangle and takes its presses itself; the
+      // band overlay and the tabs are views of their own.
+      XCTAssertTrue(
+        hit === chrome,
+        "a press at \(x - rect.minX) pt into the triangle's \(rect.width) pt goes to \(String(describing: hit))")
+      x += 1
+    }
+  }
+
+  /// The triangle's hit area gives way to a resize band only where there
+  /// is one: a fixed palette keeps the whole 16 pt, and the triangle is
+  /// drawn in the same place either way.
+  func testOnlyAResizablePaletteNarrowsTheTriangleForItsBand() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let fixed = makePalette("fixed", title: "Fixed", dock: dock, menu: ["New"])
+    let resizable = makePalette("sized", title: "Sized", dock: dock, menu: ["New"],
+                                sizing: .resizable(minimumContentSize: NSSize(width: 120, height: 80)))
+    fixed.showPanel()
+    resizable.showPanel()
+    let fixedChrome = try XCTUnwrap(fixed.hostingPanel).chrome
+    let sizedChrome = try XCTUnwrap(resizable.hostingPanel).chrome
+
+    XCTAssertEqual(fixedChrome.menuButtonRect.width, 16)
+    XCTAssertEqual(fixedChrome.menuButtonRect.maxX, fixedChrome.titleBarRect.maxX - 2)
+    XCTAssertEqual(sizedChrome.menuButtonRect.maxX,
+                   sizedChrome.titleBarRect.maxX - PaletteResizeBorderView.bandWidth)
+    XCTAssertEqual(fixedChrome.titleBarRect.maxX - fixedChrome.menuGlyphCenterX,
+                   sizedChrome.titleBarRect.maxX - sizedChrome.menuGlyphCenterX)
+  }
+
   func testTheTitleBarMenuLeadsWithThePalettesOwnCommands() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     let a = makePalette("a", title: "Alpha", dock: dock, menu: ["New", "Delete"])
@@ -212,12 +269,14 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     _ identifier: String,
     title: String,
     dock: PaletteDock,
-    menu: [String]? = nil
+    menu: [String]? = nil,
+    sizing: PaletteSizing = .fixed
   ) -> Palette {
     _ = NSApplication.shared
     let palette = Palette(
       definition: PaletteDefinition(
-        kind: kind(identifier), title: title, contentSize: NSSize(width: 220, height: 160)),
+        kind: kind(identifier), title: title, contentSize: NSSize(width: 220, height: 160),
+        sizing: sizing),
       target: { NSObject() },
       makeContent: { MenuTestContent(menuTitles: menu) },
       dock: dock

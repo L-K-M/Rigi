@@ -106,11 +106,15 @@ final class PalettePanelTests: XCTestCase {
       sizing: .resizable(minimumContentSize: PalettePanelTestGeometry.minimumContentSize)
     )
 
+    // Neither carries the window's resizable bit: with it, AppKit resizes a
+    // borderless window from its own edge and corner zones, the top edge
+    // included, and the top-right corner zone swallowed clicks on the title
+    // bar's menu triangle (seen on macOS 27). The bands below do the resizing.
     XCTAssertFalse(fixed.styleMask.contains(.resizable))
-    XCTAssertTrue(resizable.styleMask.contains(.resizable))
+    XCTAssertFalse(resizable.styleMask.contains(.resizable))
 
-    // A borderless window has no frame view, so the edges are the panel's own
-    // and a palette that cannot be resized must not grow any.
+    // The edges are the panel's own, and a palette that cannot be resized
+    // must not grow any.
     XCTAssertNil(
       try XCTUnwrap(fixed.contentView).descendants
         .first { $0 is PaletteResizeBorderView }
@@ -341,6 +345,33 @@ final class PalettePanelTests: XCTestCase {
 
     XCTAssertIdentical(content.view.superview, panel.chrome)
     XCTAssertTrue(panel.chrome.isResizeBorderEnabled)
+  }
+
+  /// Without the resizable bit AppKit reports a window's size as fixed to
+  /// assistive apps, so the panel answers for itself: a resizable palette
+  /// takes a size from VoiceOver as a drag of its right and bottom bands
+  /// would, top-left corner staying put and the limits holding.
+  @available(macOS, deprecated: 10.10, message: "Drives the legacy calls AppKit asks windows")
+  func testAssistiveAppsCanResizeAResizablePaletteAsTheBandsDo() throws {
+    _ = NSApplication.shared
+    let fixed = makePanel(kind: "tests.ax.fixed")
+    let resizable = makePanel(
+      kind: "tests.ax.resizable",
+      sizing: .resizable(minimumContentSize: PalettePanelTestGeometry.minimumContentSize)
+    )
+    XCTAssertFalse(fixed.accessibilityIsAttributeSettable(.size))
+    XCTAssertTrue(resizable.accessibilityIsAttributeSettable(.size))
+
+    let start = resizable.frame
+    let wider = NSSize(width: start.width + 40, height: start.height + 30)
+    resizable.accessibilitySetValue(NSValue(size: wider), forAttribute: .size)
+    XCTAssertEqual(resizable.frame.size, wider)
+    XCTAssertEqual(resizable.frame.minX, start.minX)
+    XCTAssertEqual(resizable.frame.maxY, start.maxY)
+
+    resizable.accessibilitySetValue(NSValue(size: NSSize(width: 1, height: 1)), forAttribute: .size)
+    let minimum = resizable.frameRect(forContentRect: NSRect(origin: .zero, size: resizable.contentMinSize)).size
+    XCTAssertEqual(resizable.frame.size, minimum)
   }
 
   private func makePanel(

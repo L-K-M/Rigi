@@ -98,8 +98,10 @@ an empty value; an unavailable action is disabled rather than silently ignored.
 - **Dialog/sheet:** a bounded operation requiring an explicit decision.
 
 Palette headers are handles. Dragging the header moves the palette; the close
-dot closes it. A resizable palette exposes side and bottom resize bands.
-The top remains the move handle. Declare a minimum useful content size.
+dot closes it. A resizable palette exposes side and bottom resize bands, and
+assistive apps can set its size the same way. The top remains the move
+handle, and the title bar's menu triangle wins over the bands. Declare a
+minimum useful content size.
 
 ## Palette groups and docking
 
