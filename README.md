@@ -63,7 +63,7 @@ presentation before exiting. CI also captures a gallery PNG as an artifact.
 | Formatting controls | `ClassicSegmentedControl`, `ClassicPopUp`, `ClassicChooserControl`, `ClassicSizeField`, `ClassicButton` |
 | Surfaces | `ClassicWindow`, `ClassicBarView`, `ClassicPanelView`, `ClassicInsetBox`, `ClassicRuleView`, `EtchedSeparatorView` |
 | Status and pickers | `StatusBarView`, `PickerItem`, `PickerListView`, `TryOnPopover` |
-| Palettes | `PaletteCenter`, `PaletteDefinition`, `PaletteContent`, `Palette`, `ClassicPaletteWindow`, `PaletteChromeView` |
+| Palettes | `PaletteCenter`, `PaletteDefinition`, `PaletteContent`, `Palette`, `PaletteGroupDefault`, `PalettePlacement`, `ClassicPaletteWindow`, `PaletteChromeView` |
 
 Applications supply commands, selection values, document targeting, item tables,
 and undo transactions. Rigi has no document-model or editor dependency.

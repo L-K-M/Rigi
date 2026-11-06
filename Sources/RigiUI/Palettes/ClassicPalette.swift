@@ -94,9 +94,43 @@ public final class PaletteChromeView: NSView {
         }
     }
 
+    /// The titles of a palette group's tabs, drawn in the title bar in place
+    /// of the single centered title. Fewer than two shows the plain title.
+    var tabTitles: [String] = [] {
+        didSet {
+            guard tabTitles != oldValue else { return }
+            updateTabAccessibility()
+            updateCloseButtonAccessibility()
+            needsDisplay = true
+        }
+    }
+
+    var selectedTabIndex = 0 {
+        didSet {
+            guard selectedTabIndex != oldValue else { return }
+            updateTabAccessibility()
+            needsDisplay = true
+        }
+    }
+
+    /// Takes over title-bar presses — tab picks, moves with snapping, tab
+    /// drags, collapse — for the generic palette panel. Without one the bar
+    /// drags the window as a plain palette does.
+    weak var titleBarDelegate: PaletteTitleBarDelegate?
+
+    /// Marks the bar as where a dragged palette lands as a tab when dropped.
+    var isDropTarget = false {
+        didSet {
+            guard isDropTarget != oldValue else { return }
+            needsDisplay = true
+        }
+    }
+
     private let closeButton = PaletteCloseButton(frame: .zero)
     private weak var embeddedView: NSView?
     private var declaredSizeConstraints: [NSLayoutConstraint] = []
+    private var resizeBorder: PaletteResizeBorderView?
+    private var tabElements: [PaletteTabAccessibilityElement] = []
 
     public init(title: String) {
         self.title = title
@@ -117,9 +151,9 @@ public final class PaletteChromeView: NSView {
     /// The content sits below the close button in z-order, keeping the bar's
     /// only control on top.
     public func embedContent(_ view: NSView) {
-        guard embeddedView !== view else { return }
+        guard embeddedView !== view || view.superview !== self else { return }
 
-        embeddedView?.removeFromSuperview()
+        removeEmbeddedContent()
         embeddedView = view
         view.translatesAutoresizingMaskIntoConstraints = false
         addSubview(view, positioned: .below, relativeTo: closeButton)
@@ -136,8 +170,35 @@ public final class PaletteChromeView: NSView {
     /// the sides and the bottom and lets every other point through to the
     /// palette below. The top edge is left to the title bar, which drags the
     /// panel.
+    /// Takes the embedded body out of the chrome, as a collapsed palette or a
+    /// tab moving to another group needs. A body already moved into another
+    /// chrome is left where it is.
+    func removeEmbeddedContent() {
+        if embeddedView?.superview === self {
+            embeddedView?.removeFromSuperview()
+        }
+        // The size pins sit on the body itself, so they would travel with it.
+        NSLayoutConstraint.deactivate(declaredSizeConstraints)
+        embeddedView = nil
+        declaredSizeConstraints = []
+    }
+
+    /// Shows or hides the resize bands, installing them on first use; a
+    /// palette group is resizable only while a resizable palette is showing.
+    func setResizeBorderEnabled(_ enabled: Bool) {
+        if enabled, resizeBorder == nil {
+            installResizeBorder()
+        }
+        resizeBorder?.isHidden = !enabled
+    }
+
+    var isResizeBorderEnabled: Bool { resizeBorder.map { !$0.isHidden } ?? false }
+
     func installResizeBorder() {
+        guard resizeBorder == nil else { return }
+
         let border = PaletteResizeBorderView()
+        resizeBorder = border
         border.interactiveSibling = closeButton
         border.translatesAutoresizingMaskIntoConstraints = false
         addSubview(border)
@@ -186,12 +247,9 @@ public final class PaletteChromeView: NSView {
         layoutCloseButton()
     }
 
-    /// `resizeSubviews` covers constraint-free resizes, `layout` the Auto
-    /// Layout passes; the dot's button tracks the bar either way.
-    public override func resizeSubviews(withOldSize oldSize: NSSize) {
-        super.resizeSubviews(withOldSize: oldSize)
-        layoutCloseButton()
-    }
+    // `resizeSubviews` (below, with the title-bar mouse handling) covers
+    // constraint-free resizes, `layout` the Auto Layout passes; the dot's
+    // button and the tabs' accessibility frames track the bar either way.
 
     /// A real control over the drawn dot: hit area padded like the old
     /// custom tracking's, so clicks land the same while keyboard focus and
@@ -201,9 +259,15 @@ public final class PaletteChromeView: NSView {
             dx: -Self.closeButtonSlop, dy: -Self.closeButtonSlop)
     }
 
+    /// The dot closes every tab of a group, and says so.
     private func updateCloseButtonAccessibility() {
-        closeButton.toolTip = "Close \(title) Palette"
-        closeButton.setAccessibilityLabel("Close \(title) palette")
+        if tabTitles.count > 1 {
+            closeButton.toolTip = "Close All Tabs"
+            closeButton.setAccessibilityLabel("Close all tabs: " + tabTitles.joined(separator: ", "))
+        } else {
+            closeButton.toolTip = "Close \(title) Palette"
+            closeButton.setAccessibilityLabel("Close \(title) palette")
+        }
     }
 
     public override func draw(_ dirtyRect: NSRect) {
@@ -228,7 +292,117 @@ public final class PaletteChromeView: NSView {
         border.lineWidth = 1
         border.stroke()
 
-        drawTitle(in: bar)
+        if tabTitles.count > 1 {
+            drawTabs(in: bar)
+        } else {
+            drawTitle(in: bar)
+        }
+
+        if isDropTarget {
+            drawDropTarget(in: bar)
+        }
+    }
+
+    // MARK: - Tabs
+
+    /// Tab text sits this far in from either side of its tab.
+    private static let tabPadding: CGFloat = 8
+
+    /// Where the tabs start: clear of the close dot and its hit slop.
+    private var tabStripMinX: CGFloat { closeBoxRect.maxX + Self.closeButtonSlop + 3 }
+
+    /// Each tab's rectangle in the title bar, left to right. Tabs take their
+    /// titles' widths, and share the bar equally once those no longer fit.
+    var tabRects: [NSRect] {
+        guard tabTitles.count > 1 else { return [] }
+
+        let bar = titleBarRect
+        let available = max(0, bar.maxX - 6 - tabStripMinX)
+        let natural = tabTitles.map {
+            ceil(ClassicText.engraved($0, size: 10.5, weight: .medium).size().width) + 2 * Self.tabPadding
+        }
+        let total = natural.reduce(0, +)
+        let widths = total <= available
+            ? natural
+            : Array(repeating: floor(available / CGFloat(natural.count)), count: natural.count)
+
+        var x = tabStripMinX
+        return widths.map { width in
+            defer { x += width }
+            return NSRect(x: x, y: bar.minY + 1, width: width, height: bar.height - 1)
+        }
+    }
+
+    /// The tab under `point`, in this view's coordinates.
+    func tabIndex(at point: NSPoint) -> Int? {
+        tabRects.firstIndex { $0.contains(point) }
+    }
+
+    private func drawTabs(in bar: NSRect) {
+        let rects = tabRects
+        for (index, rect) in rects.enumerated() {
+            let selected = index == selectedTabIndex
+            if selected {
+                // The picked tab opens into the body: body-tone fill, side
+                // hairlines, and no bottom border under it.
+                ClassicChrome.gradient(top: 0.985, bottom: 0.97).draw(in: rect, angle: 90)
+                NSColor(calibratedWhite: 0.55, alpha: 1).setFill()
+                NSRect(x: rect.minX, y: rect.minY, width: 1, height: rect.height).fill()
+                NSRect(x: rect.maxX - 1, y: rect.minY, width: 1, height: rect.height).fill()
+                ClassicChrome.gradient(top: 0.985, bottom: 0.97).draw(
+                    in: NSRect(x: rect.minX + 1, y: bar.minY, width: rect.width - 2, height: 1),
+                    angle: 90)
+            } else if index + 1 < rects.count, index + 1 != selectedTabIndex {
+                NSColor(calibratedWhite: 0.62, alpha: 1).setFill()
+                NSRect(x: rect.maxX - 1, y: rect.minY + 3, width: 1, height: rect.height - 6).fill()
+            }
+
+            let title = ClassicText.engraved(
+                tabTitles[index], size: 10.5, weight: selected ? .medium : .regular,
+                gray: selected ? 0.22 : 0.38)
+            let height = title.size().height
+            title.draw(in: NSRect(
+                x: rect.minX + Self.tabPadding,
+                y: (rect.midY - height / 2).rounded(),
+                width: max(0, rect.width - 2 * Self.tabPadding),
+                height: height))
+        }
+    }
+
+    private func drawDropTarget(in bar: NSRect) {
+        NSColor.keyboardFocusIndicatorColor.setStroke()
+        let ring = NSBezierPath(roundedRect: bar.insetBy(dx: 1.5, dy: 1.5), xRadius: 3, yRadius: 3)
+        ring.lineWidth = 2
+        ring.stroke()
+    }
+
+    /// VoiceOver reads the tabs as a radio group of tab buttons, since they are
+    /// drawn rather than built from controls.
+    private func updateTabAccessibility() {
+        guard tabTitles.count > 1 else {
+            tabElements = []
+            return
+        }
+
+        let rects = tabRects
+        tabElements = tabTitles.enumerated().map { index, title in
+            let element = PaletteTabAccessibilityElement()
+            element.setAccessibilityRole(.radioButton)
+            element.setAccessibilitySubrole(.tabButtonSubrole)
+            element.setAccessibilityLabel(title)
+            element.setAccessibilityValue(NSNumber(value: index == selectedTabIndex))
+            element.setAccessibilityParent(self)
+            element.setAccessibilityFrameInParentSpace(index < rects.count ? rects[index] : .zero)
+            element.onPress = { [weak self] in
+                guard let self else { return }
+                self.titleBarDelegate?.titleBar(self, selectTabAt: index)
+            }
+            return element
+        }
+    }
+
+    public override func accessibilityChildren() -> [Any]? {
+        (super.accessibilityChildren() ?? []) + tabElements
     }
 
     private func drawTitle(in bar: NSRect) {
@@ -246,13 +420,56 @@ public final class PaletteChromeView: NSView {
     /// subview, keeps normal event handling on its own.
     public override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if titleBarRect.contains(point) {
+        guard titleBarRect.contains(point) else { return }
+
+        if let titleBarDelegate {
+            titleBarDelegate.titleBar(self, mouseDown: event, onTab: tabIndex(at: point))
+        } else {
             window?.performDrag(with: event)
         }
     }
 
+    public override func menu(for event: NSEvent) -> NSMenu? {
+        let point = convert(event.locationInWindow, from: nil)
+        guard titleBarRect.contains(point), let titleBarDelegate else {
+            return super.menu(for: event)
+        }
+
+        return titleBarDelegate.titleBar(self, menuForTabAt: tabIndex(at: point))
+    }
+
+    public override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        layoutCloseButton()
+        updateTabAccessibility()
+    }
+
     @objc private func closePressed() {
         onClose?()
+    }
+}
+
+/// Receives the palette title bar's presses when the chrome belongs to a
+/// palette group.
+@MainActor
+protocol PaletteTitleBarDelegate: AnyObject {
+    /// A press in the title bar, on tab `tab` or on the bar itself.
+    func titleBar(_ chrome: PaletteChromeView, mouseDown event: NSEvent, onTab tab: Int?)
+    /// An assistive technology pressed tab `index`.
+    func titleBar(_ chrome: PaletteChromeView, selectTabAt index: Int)
+    /// The contextual menu for tab `tab`, or for the bar itself.
+    func titleBar(_ chrome: PaletteChromeView, menuForTabAt tab: Int?) -> NSMenu?
+}
+
+/// One drawn tab, as assistive technologies see it.
+/// Assistive technologies call in on the main thread, where the chrome that
+/// sets `onPress` lives.
+final class PaletteTabAccessibilityElement: NSAccessibilityElement {
+    var onPress: (() -> Void)?
+
+    override func accessibilityPerformPress() -> Bool {
+        onPress?()
+        return true
     }
 }
 

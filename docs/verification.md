@@ -14,8 +14,9 @@ swift build -c release
 ```
 
 The shared tests cover palette content sizing, frame restoration, resize bands,
-typed retargeting, presentation lifecycle, picker selection, and preview finish
-callbacks. The gallery smoke check exercises the public API from another target.
+typed retargeting, presentation lifecycle, palette groups, tab drags, snapping,
+docking, collapse, hiding, layout persistence and validation, picker selection,
+and preview finish callbacks. The gallery smoke check exercises the public API from another target.
 CI retains a gallery screenshot for visual inspection.
 
 App CI must also build and test Lucerne and Sion against the pinned revision.
@@ -36,9 +37,12 @@ In the gallery, then both applications:
    app and return. Verify focus and palette visibility.
 6. Resize a palette down to its minimum, restore a saved frame, and move between
    displays. Keep its header and useful content reachable.
-7. Inspect normal, pressed, disabled, selected, inactive, and mixed-value states.
+7. Group two palettes by dropping one bar on another, reorder and tear off a
+   tab, dock a panel under another and move the column, collapse it, hide and
+   restore all palettes, and relaunch. Check that the arrangement returns.
+8. Inspect normal, pressed, disabled, selected, inactive, and mixed-value states.
    Check at 1x/2x scale and with macOS Dark Mode enabled (Rigi stays Aqua).
-8. Use VoiceOver and Full Keyboard Access. Check names, states, focus order,
+9. Use VoiceOver and Full Keyboard Access. Check names, states, focus order,
    native toolbar customization, and keyboard equivalents.
 
 A screenshot checks appearance only. A smoke run checks bounded presentation

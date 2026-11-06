@@ -25,8 +25,8 @@ enum GalleryApplication {
         }
     }
 
-    /// Minimal menu bar: Quit, plus Undo/Redo so ⌘Z reaches the window's undo
-    /// manager through the responder chain.
+    /// Minimal menu bar: Quit, Undo/Redo so ⌘Z reaches the window's undo
+    /// manager through the responder chain, and the palette commands.
     private static func makeMainMenu() -> NSMenu {
         let menu = NSMenu()
         let appItem = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")
@@ -39,6 +39,17 @@ enum GalleryApplication {
         editMenu.addItem(withTitle: "Undo", action: Selector("undo:"), keyEquivalent: "z")
         editMenu.addItem(withTitle: "Redo", action: Selector("redo:"), keyEquivalent: "Z")
         editItem.submenu = editMenu
+        // Window commands travel the responder chain to the gallery
+        // controller, the window's delegate.
+        let windowItem = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Swatches",
+                           action: #selector(GalleryController.showSwatches(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: "Hide Palettes",
+                           action: #selector(GalleryController.togglePalettes(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: "Reset Palette Layout",
+                           action: #selector(GalleryController.resetPaletteLayout(_:)), keyEquivalent: "")
+        windowItem.submenu = windowMenu
         return menu
     }
 }

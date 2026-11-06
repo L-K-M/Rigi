@@ -6,30 +6,24 @@ private enum PaletteMetrics {
   static let maximumContentSize = NSSize(width: 10_000, height: 10_000)
 }
 
-/// Classic chrome around a borderless palette panel.
+/// Classic chrome around a borderless palette panel, hosting the body of
+/// whichever palette the panel's group shows.
 @MainActor
 final class PalettePanelViewController: NSViewController {
   var onClose: (@MainActor () -> Void)? {
     didSet { chrome.onClose = onClose }
   }
 
-  private let chrome: PaletteChromeView
-  private let declaredContentSize: NSSize
-  private var embeddedController: NSViewController?
+  let chrome: PaletteChromeView
+  private(set) var embeddedController: NSViewController?
+  private var declaredContentSize: NSSize
+  private var isCollapsed = false
 
-  init(title: String, contentSize: NSSize, isResizable: Bool) {
+  init(title: String, contentSize: NSSize) {
     declaredContentSize = contentSize
     chrome = PaletteChromeView(title: title)
 
     super.init(nibName: nil, bundle: nil)
-
-    // A borderless panel has no title bar of its own to size it, so the
-    // chrome states the size the window should open at.
-    preferredContentSize = PalettePanel.panelSize(forContentSize: contentSize)
-
-    if isResizable {
-      chrome.installResizeBorder()
-    }
   }
 
   @available(*, unavailable)
@@ -41,58 +35,104 @@ final class PalettePanelViewController: NSViewController {
     view = chrome
   }
 
-  func embed(_ controller: NSViewController) {
-    guard embeddedController !== controller else { return }
+  /// Shows `controller`'s view as the panel body, declared at `contentSize`.
+  func embed(_ controller: NSViewController, contentSize: NSSize) {
+    declaredContentSize = contentSize
 
-    embeddedController?.removeFromParent()
+    if embeddedController !== controller {
+      removeEmbeddedController()
+    }
+    if controller.parent !== self {
+      // A tab moving between groups arrives still parented to its old panel.
+      controller.removeFromParent()
+      addChild(controller)
+    }
     embeddedController = controller
-    addChild(controller)
+
+    guard !isCollapsed else { return }
+
     chrome.embedContent(controller.view)
-    chrome.applyDeclaredContentSize(declaredContentSize)
+    chrome.applyDeclaredContentSize(contentSize)
+  }
+
+  /// Lets go of the body, leaving the panel empty.
+  func removeEmbeddedController() {
+    guard let controller = embeddedController else { return }
+
+    if controller.view.superview === chrome {
+      chrome.removeEmbeddedContent()
+    }
+    if controller.parent === self {
+      controller.removeFromParent()
+    }
+    embeddedController = nil
+  }
+
+  /// A collapsed panel is its title bar alone; the body leaves the chrome,
+  /// rather than squeezing to nothing under constraints it cannot meet.
+  func setCollapsed(_ collapsed: Bool) {
+    guard collapsed != isCollapsed else { return }
+
+    isCollapsed = collapsed
+    guard let controller = embeddedController else { return }
+
+    if collapsed {
+      if controller.view.superview === chrome {
+        chrome.removeEmbeddedContent()
+      }
+    } else {
+      chrome.embedContent(controller.view)
+      chrome.applyDeclaredContentSize(declaredContentSize)
+    }
   }
 }
 
+/// How a palette panel may be sized while it shows a given palette.
+enum PalettePanelSizing: Equatable {
+  /// Exactly this content size.
+  case fixed(NSSize)
+  /// At least this content size, from the side and bottom bands.
+  case resizable(minimumContentSize: NSSize)
+  /// The title bar alone, at this content width.
+  case collapsed(width: CGFloat)
+}
+
 /// A nonactivating utility window that becomes key only for controls that need it.
+///
+/// One panel serves a palette group: it shows the selected palette's body
+/// and takes that palette's size limits. Its frame persists in the palette
+/// layout rather than under a window autosave name.
 @MainActor
 final class PalettePanel: ClassicPaletteWindow {
   /// The prefix a definition's frame autosave name falls back to when it does
-  /// not carry one of its own.
+  /// not carry one of its own. Frames saved under these names before palette
+  /// groups existed seed a group's first placement.
   static let defaultFrameAutosavePrefix = "Rigi.palette."
+
+  /// The close dot, Escape and Command-W, which close the whole group.
+  var onCloseRequest: (@MainActor () -> Void)? {
+    didSet { paletteViewController.onClose = onCloseRequest }
+  }
+
+  var chrome: PaletteChromeView { paletteViewController.chrome }
 
   private let paletteViewController: PalettePanelViewController
 
-  init(definition: PaletteDefinition) {
-    var styleMask: NSWindow.StyleMask = [.borderless, .closable, .nonactivatingPanel]
-    var isResizable = false
-    if case .resizable = definition.sizing {
-      styleMask.insert(.resizable)
-      isResizable = true
-    }
+  init(title: String, contentSize: NSSize) {
+    let panelSize = Self.panelSize(forContentSize: contentSize)
+    paletteViewController = PalettePanelViewController(title: title, contentSize: contentSize)
 
-    let panelSize = Self.panelSize(forContentSize: definition.contentSize)
-    paletteViewController = PalettePanelViewController(
-      title: definition.title,
-      contentSize: definition.contentSize,
-      isResizable: isResizable
-    )
+    super.init(contentSize: panelSize, styleMask: [.borderless, .closable, .nonactivatingPanel])
 
-    super.init(contentSize: panelSize, styleMask: styleMask)
-
-    title = definition.title
+    self.title = title
     isMovable = true
 
-    // The limits go in before the content view controller, which resizes the
-    // window to the controller's preferred size as it is attached.
-    configureSizing(definition.sizing, preferredContentSize: panelSize)
-    contentViewController = paletteViewController
-
-    // Center first; setFrameAutosaveName restores a previous placement.
-    center()
-    _ = setFrameAutosaveName(
-      definition.frameAutosaveName
-        ?? Self.defaultFrameAutosavePrefix + definition.kind.identifier
-    )
-    growToMinimumContentSize()
+    // The chrome is the content view rather than the window's content view
+    // controller: AppKit pins a window to its content view controller's
+    // preferred size, above the priority a frame change holds at, which
+    // would undo every resize, collapse and tab switch.
+    contentView = paletteViewController.view
+    apply(.fixed(contentSize))
   }
 
   @available(*, unavailable)
@@ -110,67 +150,79 @@ final class PalettePanel: ClassicPaletteWindow {
     )
   }
 
+  /// The content area inside a panel frame of `size`; the inverse of
+  /// ``panelSize(forContentSize:)``.
+  static func contentSize(forPanelSize size: NSSize) -> NSSize {
+    NSSize(
+      width: max(0, size.width - 2 * PaletteChromeView.contentInset),
+      height: max(0, size.height - PaletteChromeView.titleBarHeight - PaletteChromeView.contentInset)
+    )
+  }
+
   override func performClose(_ sender: Any?) {
-    close()
+    requestClose()
   }
 
   override func cancelOperation(_ sender: Any?) {
-    close()
+    requestClose()
   }
 
-  func embed(_ controller: NSViewController) {
-    paletteViewController.embed(controller)
+  func embed(_ controller: NSViewController, contentSize: NSSize) {
+    paletteViewController.embed(controller, contentSize: contentSize)
   }
 
-  func setCloseHandler(_ handler: @escaping @MainActor () -> Void) {
-    paletteViewController.onClose = handler
+  func removeEmbeddedContent() {
+    paletteViewController.removeEmbeddedController()
   }
 
-  private func configureSizing(_ sizing: PaletteSizing, preferredContentSize: NSSize) {
+  var embeddedController: NSViewController? { paletteViewController.embeddedController }
+
+  /// Sets the style mask, resize bands and size limits for `sizing`. The
+  /// frame itself is the caller's to set: limits alone never move a window.
+  func apply(_ sizing: PalettePanelSizing) {
     switch sizing {
-    case .fixed:
-      contentMinSize = preferredContentSize
-      contentMaxSize = preferredContentSize
+    case .fixed(let contentSize):
+      styleMask.remove(.resizable)
+      chrome.setResizeBorderEnabled(false)
+      paletteViewController.setCollapsed(false)
+      contentMinSize = Self.panelSize(forContentSize: contentSize)
+      contentMaxSize = contentMinSize
 
     case .resizable(let minimumContentSize):
+      styleMask.insert(.resizable)
+      chrome.setResizeBorderEnabled(true)
+      paletteViewController.setCollapsed(false)
       contentMinSize = Self.panelSize(forContentSize: minimumContentSize)
       contentMaxSize = PaletteMetrics.maximumContentSize
+
+    case .collapsed(let width):
+      styleMask.remove(.resizable)
+      chrome.setResizeBorderEnabled(false)
+      paletteViewController.setCollapsed(true)
+      contentMinSize = Self.panelSize(forContentSize: NSSize(width: width, height: 0))
+      contentMaxSize = contentMinSize
     }
   }
 
-  /// A frame restored from user defaults can be smaller than the palette can
-  /// show anything in — one saved by a build that collapsed the panel, say.
-  /// Growing back is the only way out for a palette the user cannot resize.
-  private func growToMinimumContentSize() {
-    let current = contentRect(forFrameRect: frame).size
-    guard current.width < contentMinSize.width || current.height < contentMinSize.height else {
-      return
+  private func requestClose() {
+    if let onCloseRequest {
+      onCloseRequest()
+    } else {
+      close()
     }
+  }
 
-    let grown = frameRect(
-      forContentRect: NSRect(
-        origin: .zero,
-        size: NSSize(
-          width: max(current.width, contentMinSize.width),
-          height: max(current.height, contentMinSize.height)
-        )
-      )
-    )
+  /// A frame saved under `name` by NSWindow's frame autosave, which palettes
+  /// used before the layout kept their frames. The string starts with the
+  /// window frame as "x y width height"; the screen frame follows.
+  static func legacySavedFrame(named name: String, in defaults: UserDefaults = .standard) -> NSRect? {
+    guard let string = defaults.string(forKey: "NSWindow Frame \(name)") else { return nil }
 
-    // Anchored at the top-left, then held on screen: the position the frame
-    // grew from is as arbitrary as its size was, and a palette hanging off
-    // the edge is as far out of reach as one collapsed to its header. The
-    // window may be on no screen at all, which is why the main one stands in.
-    let anchored = NSRect(
-      x: frame.minX,
-      y: frame.maxY - grown.height,
-      width: grown.width,
-      height: grown.height
-    )
-    let visible = (screen ?? NSScreen.main)?.visibleFrame
-
-    // One frame change, so nothing observing the window sees it half moved.
-    setFrame(visible.map { Self.constrained(anchored, to: $0) } ?? anchored, display: false)
+    let values = string.split(separator: " ").prefix(4).compactMap { Double($0) }
+    guard values.count == 4, values.allSatisfy(\.isFinite), values[2] > 0, values[3] > 0 else {
+      return nil
+    }
+    return NSRect(x: values[0], y: values[1], width: values[2], height: values[3])
   }
 
   /// Slides `rect` inside `visible` without resizing it.

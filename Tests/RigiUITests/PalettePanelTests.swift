@@ -36,7 +36,7 @@ final class PalettePanelTests: XCTestCase {
     _ = NSApplication.shared
     let panel = makePanel()
     let content = PaletteTestContent()
-    panel.embed(content)
+    panel.embed(content, contentSize: PalettePanelTestGeometry.contentSize)
     let chrome = try XCTUnwrap(panel.contentView)
 
     // The palette's own 300 points plus the 16pt classic title bar and the
@@ -259,8 +259,8 @@ final class PalettePanelTests: XCTestCase {
   func testCloseButtonClosesPanel() throws {
     _ = NSApplication.shared
     let panel = makePanel()
-    panel.setCloseHandler { [weak panel] in
-      panel?.close()
+    panel.onCloseRequest = { [weak panel] in
+      panel?.orderOut(nil)
     }
     panel.orderFrontRegardless()
 
@@ -301,52 +301,63 @@ final class PalettePanelTests: XCTestCase {
     XCTAssertFalse(panel.isVisible)
   }
 
-  func testPanelPersistsItsFrameUnderARigiNamespacedAutosaveNameByDefault() {
-    _ = NSApplication.shared
-    let panel = PalettePanel(
-      definition: PaletteDefinition(
-        kind: PaletteKind("tests.autosave.default"),
-        title: "Autosave Default",
-        contentSize: NSSize(width: 200, height: 160)
-      )
-    )
-    defer { panel.close() }
+  func testAFrameSavedByWindowAutosaveIsReadBack() throws {
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: "tests.palette.legacy.\(UUID().uuidString)"))
+    defaults.set("120 340 302 337 0 0 1512 944 ", forKey: "NSWindow Frame Sion.palette.inspector")
+    defaults.set("garbage", forKey: "NSWindow Frame broken")
+    defaults.set("1 2 0 5 0 0 1512 944 ", forKey: "NSWindow Frame empty")
 
     XCTAssertEqual(
-      panel.frameAutosaveName,
-      "Rigi.palette.tests.autosave.default"
+      PalettePanel.legacySavedFrame(named: "Sion.palette.inspector", in: defaults),
+      NSRect(x: 120, y: 340, width: 302, height: 337)
     )
+    XCTAssertNil(PalettePanel.legacySavedFrame(named: "missing", in: defaults))
+    XCTAssertNil(PalettePanel.legacySavedFrame(named: "broken", in: defaults))
+    XCTAssertNil(PalettePanel.legacySavedFrame(named: "empty", in: defaults))
   }
 
-  func testPanelPersistsItsFrameUnderAnExplicitAutosaveName() {
+  func testCollapsingKeepsOnlyTheTitleBarAndDropsTheResizeBands() throws {
     _ = NSApplication.shared
-    // An adapter keeps the keys an earlier toolkit saved its frames under —
-    // Sion's, for example — instead of abandoning the user's placement.
-    let panel = PalettePanel(
-      definition: PaletteDefinition(
-        kind: PaletteKind("tests.autosave.custom"),
-        title: "Autosave Custom",
-        contentSize: NSSize(width: 200, height: 160),
-        frameAutosaveName: "Sion.palette.tests.autosave.custom"
-      )
+    let panel = makePanel(
+      kind: "tests.collapse",
+      sizing: .resizable(minimumContentSize: PalettePanelTestGeometry.minimumContentSize)
     )
-    defer { panel.close() }
+    let content = PaletteTestContent()
+    panel.embed(content, contentSize: PalettePanelTestGeometry.contentSize)
+    XCTAssertTrue(panel.chrome.isResizeBorderEnabled)
 
-    XCTAssertEqual(panel.frameAutosaveName, "Sion.palette.tests.autosave.custom")
+    panel.apply(.collapsed(width: PalettePanelTestGeometry.contentSize.width))
+
+    // The body leaves the chrome instead of being squeezed to nothing.
+    XCTAssertNil(content.view.superview)
+    XCTAssertFalse(panel.chrome.isResizeBorderEnabled)
+    XCTAssertFalse(panel.styleMask.contains(.resizable))
+    XCTAssertEqual(
+      panel.contentMinSize.height,
+      PaletteChromeView.titleBarHeight + PaletteChromeView.contentInset
+    )
+
+    panel.apply(.resizable(minimumContentSize: PalettePanelTestGeometry.minimumContentSize))
+
+    XCTAssertIdentical(content.view.superview, panel.chrome)
+    XCTAssertTrue(panel.chrome.isResizeBorderEnabled)
   }
 
   private func makePanel(
     kind: String = "tests.inspector",
     sizing: PaletteSizing = .fixed
   ) -> PalettePanel {
-    PalettePanel(
-      definition: PaletteDefinition(
-        kind: PaletteKind(kind),
-        title: PalettePanelTestCopy.title,
-        contentSize: PalettePanelTestGeometry.contentSize,
-        sizing: sizing
-      )
+    let panel = PalettePanel(
+      title: PalettePanelTestCopy.title,
+      contentSize: PalettePanelTestGeometry.contentSize
     )
+    switch sizing {
+    case .fixed:
+      panel.apply(.fixed(PalettePanelTestGeometry.contentSize))
+    case .resizable(let minimum):
+      panel.apply(.resizable(minimumContentSize: minimum))
+    }
+    return panel
   }
 }
 

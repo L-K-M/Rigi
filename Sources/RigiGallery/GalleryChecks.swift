@@ -83,10 +83,33 @@ enum GallerySmokeTest {
         check(!controller.chooser.representsOpenPalette, "palette close restores")
 
         // The generic PaletteCenter palette floats for real.
+        let center = PaletteCenter.shared
+        center.resetLayout()
         controller.inspectorPalette.showPanel()
         settle()
         check(controller.inspectorPalette.isPresented, "inspector presented")
         check(controller.inspectorPalette.isFloating, "inspector floating")
+
+        // A second palette of the same default group joins it as a tab.
+        controller.swatchesPalette.showPanel()
+        settle()
+        let paletteTitles: Set<String> = ["Inspector", "Swatches"]
+        let shownPanels = {
+            NSApp.windows.filter { $0 is ClassicPaletteWindow && $0.isVisible && paletteTitles.contains($0.title) }
+        }
+        check(center.groupMembers(of: GalleryPaletteKind.inspector)
+                == [GalleryPaletteKind.inspector, GalleryPaletteKind.swatches], "default group")
+        check(controller.swatchesPalette.isFloating, "swatches floating")
+        check(shownPanels().count == 1, "grouped palettes share one panel")
+
+        // Hiding keeps palettes open; restoring brings their panel back.
+        center.hideAll()
+        check(center.isHidingPalettes, "palettes hidden")
+        check(shownPanels().isEmpty, "no palette panel on screen")
+        check(controller.inspectorPalette.isPresented, "hidden palette stays presented")
+        center.restoreAll()
+        check(!center.isHidingPalettes && shownPanels().count == 1, "palettes restored")
+        center.closeAll()
 
         print(failures.isEmpty ? "SMOKE OK" : "SMOKE FAILED \(failures.count)")
         return failures.isEmpty ? 0 : 1
