@@ -21,10 +21,16 @@ final class GalleryModel {
 
     let undo = UndoManager()
     var onChange: (() -> Void)?
-    var zoomPercent = 100 { didSet { onChange?() } }
-    /// Palettes that show the specimen observe this rather than `onChange`,
+    /// Palettes that show the model observe this rather than `onChange`,
     /// which the window owns.
     static let didChange = Notification.Name("GalleryModelDidChange")
+
+    var zoomPercent = 100 {
+        didSet {
+            onChange?()
+            NotificationCenter.default.post(name: Self.didChange, object: self)
+        }
+    }
 
     private(set) var specimen = Specimen() {
         didSet { NotificationCenter.default.post(name: Self.didChange, object: self) }
@@ -100,6 +106,13 @@ final class GalleryController: NSObject, NSWindowDelegate {
     let specimenPopUp = ClassicPopUp(width: 96)
     let toolbarStack = NSStackView(frame: .zero)
     let statusBar = StatusBarView(frame: .zero)
+    /// A status bar accessory: the specimen's family at a glance.
+    let familyLabel: NSTextField = {
+        let label = NSTextField(labelWithString: "")
+        label.font = .systemFont(ofSize: 10)
+        label.textColor = .secondaryLabelColor
+        return label
+    }()
     let specimenLabel = NSTextField(labelWithString: "")
     let tryOnPopover = TryOnPopover(hint: "Return keeps · Esc reverts · drag off to float")
     let tearOffPalette: GalleryTearOffPalette
@@ -123,14 +136,14 @@ final class GalleryController: NSObject, NSWindowDelegate {
         ])
         inspectorPalette = PaletteCenter.shared.palette(
             for: PaletteDefinition(kind: GalleryPaletteKind.inspector, title: "Inspector",
-                                   contentSize: NSSize(width: 224, height: 118),
+                                   contentSize: NSSize(width: 300, height: 146),
                                    frameAutosaveName: "RigiGallery.inspector"),
             target: { model },
             makeContent: { InspectorContent() })
         swatchesPalette = PaletteCenter.shared.palette(
             for: PaletteDefinition(kind: GalleryPaletteKind.swatches, title: "Swatches",
-                                   contentSize: NSSize(width: 224, height: 64),
-                                   sizing: .resizable(minimumContentSize: NSSize(width: 160, height: 40))),
+                                   contentSize: NSSize(width: 300, height: 70),
+                                   sizing: .resizable(minimumContentSize: NSSize(width: 160, height: 70))),
             target: { model },
             makeContent: { SwatchesContent() })
         toolsPalette = PaletteCenter.shared.palette(
@@ -167,6 +180,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
         }
         toolControl.trackingMode = .selectAny
         chooser.title = model.family
+        familyLabel.stringValue = model.family
         sizeField.stringValue = Self.trimmed(model.size)
         colorWell.color = model.color
         specimenPopUp.addItems(withTitles: ["Quick fox", "Sphinx", "Alphabet"])
@@ -220,6 +234,9 @@ final class GalleryController: NSObject, NSWindowDelegate {
         statusBar.onZoomIn = { [weak self] in self?.zoom(by: 10) }
         statusBar.onZoomOut = { [weak self] in self?.zoom(by: -10) }
         statusBar.onZoomReset = { [weak self] in self?.zoom(to: 100) }
+        statusBar.isZoomEditable = true
+        statusBar.onZoomTo = { [weak self] percent in self?.zoom(to: percent) }
+        statusBar.setAccessoryViews([familyLabel])
         tearOffPalette.onPick = { item in model.edit { $0.family = item.id } }
         tearOffPalette.onFinish = { [weak self] in self?.window.makeKey() }
         tearOffPalette.onVisibilityChange = { [weak self] open in
@@ -347,6 +364,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
         specimenLabel.attributedStringValue = NSAttributedString(string: specimenText,
                                                                attributes: attributes)
         chooser.title = model.family
+        familyLabel.stringValue = model.family
         sizeField.stringValue = Self.trimmed(model.size)
         colorWell.color = model.color
         toolControl.setSelected(model.specimen.bold, forSegment: 0)

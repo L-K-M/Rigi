@@ -145,6 +145,36 @@ enum GallerySmokeTest {
         center.deleteWorkspace(named: workspace)
         check(!center.workspaceNames.contains(workspace), "workspace deleted")
 
+        // The status bar's editable zoom, accessory and progress.
+        let statusBar = controller.statusBar
+        statusBar.onZoomTo?(250)
+        check(controller.model.zoomPercent == 250, "status bar zoom typed")
+        check(controller.familyLabel.superview != nil, "status bar accessory")
+        controller.model.edit { $0.family = "Georgia" }
+        check(controller.familyLabel.stringValue == "Georgia", "status bar accessory follows the family")
+        controller.model.undo.undo()
+        statusBar.showProgress(fraction: 0.5)
+        check(statusBar.isShowingProgress, "status bar progress")
+        statusBar.hideProgress()
+        check(!statusBar.isShowingProgress, "status bar progress hidden")
+
+        // The inspector's value slider follows the zoom; the swatches' button
+        // bar adds an ink.
+        controller.inspectorPalette.bringToFront()
+        settle()
+        let inspectorView = NSApp.windows.first { $0 is ClassicPaletteWindow && $0.isVisible
+            && $0.title == "Inspector" }?.contentView
+        let valueSlider = inspectorView.flatMap { firstDescendant(of: $0, as: ClassicValueSlider.self) }
+        check(valueSlider?.value == 250, "value slider follows the model")
+        controller.swatchesPalette.bringToFront()
+        settle()
+        let swatchesView = NSApp.windows.first { $0 is ClassicPaletteWindow && $0.isVisible
+            && $0.title == "Swatches" }?.contentView
+        let buttonBar = swatchesView.flatMap { firstDescendant(of: $0, as: ClassicPaletteButtonBar.self) }
+        check(buttonBar?.isEnabled(item: "add") == true, "button bar add enabled")
+        check(buttonBar?.isEnabled(item: "remove") == false, "button bar remove disabled")
+        controller.model.zoomPercent = 100
+
         // Hiding keeps palettes open; restoring brings their panel back.
         center.hideAll()
         check(center.isHidingPalettes, "palettes hidden")
