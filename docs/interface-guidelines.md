@@ -60,6 +60,17 @@ Run `swift run RigiGallery` for the executable examples.
   and validates entered values before changing its model.
 - Use native checkboxes and text fields for inspector forms, particularly mixed
   selection states. Use `ClassicColorWell` for color selection.
+- `ClassicToolGrid` is a tool palette: 24 pt cells in columns, one selected
+  tool, radio-group accessibility. A cell holding several tools is a group,
+  marked by a corner triangle. Click picks the cell's current tool;
+  press-and-hold or drag opens a flyout of the group; Option-click cycles it.
+  Give every tool a name, and a shortcut hint when a key picks it. The action
+  fires once per pick; `selectTool(id:)` reflects keyboard picks without one.
+- `ClassicColorPair` shows a foreground and a background color with a swap
+  arrow and a reset to black and white. It reports clicks on each part and
+  never changes its colors itself: the application sets both, including
+  after a swap or reset. Name the shortcuts the application handles, such as
+  X and D, through `swapShortcut` and `resetShortcut`.
 
 Use tooltips for compact controls, but do not rely on them as the only label.
 Each icon needs an accessibility description. A mixed value is distinct from

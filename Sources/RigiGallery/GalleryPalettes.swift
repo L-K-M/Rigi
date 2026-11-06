@@ -172,6 +172,7 @@ final class InspectorContent: NSViewController, PaletteContent {
 }
 
 enum GalleryPaletteKind {
+    static let tools = PaletteKind("tools")
     static let inspector = PaletteKind("inspector")
     static let swatches = PaletteKind("swatches")
 }
@@ -223,5 +224,110 @@ final class SwatchesContent: NSViewController, PaletteContent {
     @objc private func pick(_ sender: NSButton) {
         guard Self.inks.indices.contains(sender.tag) else { return }
         model?.edit { $0.color = Self.inks[sender.tag] }
+    }
+}
+
+/// A paint program's tool palette in miniature: a ClassicToolGrid with two
+/// groups, and a ClassicColorPair showing the specimen's ink and highlight.
+/// The tools only demonstrate selection; the color pair edits the model.
+@MainActor
+final class ToolsContent: NSViewController, PaletteContent {
+
+    static let contentSize = NSSize(width: 61, height: 156)
+
+    static let slots: [ClassicToolGrid.Slot] = [
+        [("select.rect", "Rectangle Select", "M", "rectangle.dashed"),
+         ("select.ellipse", "Ellipse Select", "M", "circle.dashed")],
+        [("move", "Move", "V", "arrow.up.and.down.and.arrow.left.and.right")],
+        [("brush", "Brush", "B", "paintbrush.pointed"),
+         ("pencil", "Pencil", "B", "pencil")],
+        [("eraser", "Eraser", "E", "eraser")],
+        [("eyedropper", "Eyedropper", "I", "eyedropper")],
+        [("zoom", "Zoom", "Z", "magnifyingglass")],
+    ].map { group in
+        ClassicToolGrid.Slot(tools: group.map { id, name, shortcut, symbol in
+            let image = NSImage(systemSymbolName: symbol, accessibilityDescription: name) ?? NSImage()
+            image.isTemplate = true
+            return ClassicToolGrid.Tool(id: id, name: name, shortcut: shortcut, image: image)
+        })
+    }
+
+    let grid = ClassicToolGrid(slots: ToolsContent.slots)
+    let colors = ClassicColorPair()
+    private weak var model: GalleryModel?
+
+    override func loadView() {
+        let root = ClassicPanelView()
+        grid.selectTool(id: "brush")
+        colors.swapShortcut = "X"
+        colors.resetShortcut = "D"
+        for view in [grid, colors] as [NSView] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            root.addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            grid.topAnchor.constraint(equalTo: root.topAnchor, constant: 6),
+            grid.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            colors.topAnchor.constraint(equalTo: grid.bottomAnchor, constant: 8),
+            colors.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+        ])
+        view = root
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        colors.onSwap = { [weak self] in
+            self?.model?.edit { swap(&$0.color, &$0.highlight) }
+        }
+        colors.onReset = { [weak self] in
+            self?.model?.edit {
+                $0.color = .black
+                $0.highlight = .white
+            }
+        }
+        colors.onEditForeground = { [weak self] in self?.pickColor(\.color) }
+        colors.onEditBackground = { [weak self] in self?.pickColor(\.highlight) }
+    }
+
+    func retarget(to target: GalleryModel?) {
+        let center = NotificationCenter.default
+        center.removeObserver(self, name: GalleryModel.didChange, object: nil)
+        model = target
+        if let target {
+            center.addObserver(self, selector: #selector(modelDidChange(_:)),
+                               name: GalleryModel.didChange, object: target)
+        }
+        sync()
+    }
+
+    func paletteDidPresent(_ presentation: PalettePresentation) { sync() }
+
+    @objc private func modelDidChange(_ notification: Notification) { sync() }
+
+    func sync() {
+        colors.isEnabled = model != nil
+        grid.isEnabled = model != nil
+        guard let model else { return }
+        colors.foreground = model.color
+        colors.background = model.specimen.highlight
+    }
+
+    // MARK: Color panel
+
+    private var pickedKeyPath: WritableKeyPath<GalleryModel.Specimen, NSColor>?
+
+    private func pickColor(_ keyPath: WritableKeyPath<GalleryModel.Specimen, NSColor>) {
+        guard let model else { return }
+        pickedKeyPath = keyPath
+        let panel = NSColorPanel.shared
+        panel.setTarget(self)
+        panel.setAction(#selector(colorPicked(_:)))
+        panel.color = model.specimen[keyPath: keyPath]
+        panel.orderFront(nil)
+    }
+
+    @objc private func colorPicked(_ sender: NSColorPanel) {
+        guard let keyPath = pickedKeyPath else { return }
+        model?.edit { $0[keyPath: keyPath] = sender.color }
     }
 }

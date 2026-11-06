@@ -102,6 +102,25 @@ enum GallerySmokeTest {
         check(controller.swatchesPalette.isFloating, "swatches floating")
         check(shownPanels().count == 1, "grouped palettes share one panel")
 
+        // The tool palette: a ClassicToolGrid and a ClassicColorPair that
+        // shows the specimen's colors and reports swaps to the model.
+        controller.toolsPalette.showPanel()
+        settle()
+        check(controller.toolsPalette.isFloating, "tools floating")
+        let toolsView = NSApp.windows.first { $0.title == "Tools" && $0.isVisible }?.contentView
+        let grid = toolsView.flatMap { firstDescendant(of: $0, as: ClassicToolGrid.self) }
+        let pair = toolsView.flatMap { firstDescendant(of: $0, as: ClassicColorPair.self) }
+        check(grid?.slots.count == ToolsContent.slots.count, "tool grid slots")
+        check(grid?.selectedToolID == "brush", "tool grid selection")
+        check(pair?.foreground == controller.model.color, "color pair shows the ink")
+        let ink = controller.model.color
+        pair?.onSwap?()
+        settle()
+        check(controller.model.specimen.highlight == ink && pair?.background == ink,
+              "color pair swap reaches the model and comes back")
+        controller.model.undo.undo()
+        settle()
+
         // Hiding keeps palettes open; restoring brings their panel back.
         center.hideAll()
         check(center.isHidingPalettes, "palettes hidden")
@@ -152,4 +171,13 @@ enum GalleryScreenshot {
         print("screenshot: wrote \(path) (\(bitmap.pixelsWide)×\(bitmap.pixelsHigh))")
         return 0
     }
+}
+
+@MainActor
+private func firstDescendant<View: NSView>(of view: NSView, as type: View.Type) -> View? {
+    if let match = view as? View { return match }
+    for subview in view.subviews {
+        if let match = firstDescendant(of: subview, as: type) { return match }
+    }
+    return nil
 }

@@ -15,12 +15,20 @@ final class GalleryModel {
         var size = 18.0
         var bold = false, italic = false, underline = false
         var color = NSColor(calibratedWhite: 0.15, alpha: 1)
+        /// The text highlight behind the specimen; the color pair's background.
+        var highlight = NSColor.white
     }
 
     let undo = UndoManager()
     var onChange: (() -> Void)?
     var zoomPercent = 100 { didSet { onChange?() } }
-    private(set) var specimen = Specimen()
+    /// Palettes that show the specimen observe this rather than `onChange`,
+    /// which the window owns.
+    static let didChange = Notification.Name("GalleryModelDidChange")
+
+    private(set) var specimen = Specimen() {
+        didSet { NotificationCenter.default.post(name: Self.didChange, object: self) }
+    }
     private var tryOnBase: Specimen?
 
     var family: String { specimen.family }
@@ -97,6 +105,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
     let tearOffPalette: GalleryTearOffPalette
     let inspectorPalette: Palette
     let swatchesPalette: Palette
+    let toolsPalette: Palette
     private var specimenText: String
 
     override init() {
@@ -108,6 +117,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
         ) { Self.specimenFont(for: $0) }
         // Inspector and Swatches share one panel as tabs until rearranged.
         PaletteCenter.shared.setDefaultLayout([
+            PaletteGroupDefault([GalleryPaletteKind.tools], placement: .topLeading),
             PaletteGroupDefault([GalleryPaletteKind.inspector, GalleryPaletteKind.swatches],
                                 placement: .topTrailing)
         ])
@@ -123,6 +133,11 @@ final class GalleryController: NSObject, NSWindowDelegate {
                                    sizing: .resizable(minimumContentSize: NSSize(width: 160, height: 40))),
             target: { model },
             makeContent: { SwatchesContent() })
+        toolsPalette = PaletteCenter.shared.palette(
+            for: PaletteDefinition(kind: GalleryPaletteKind.tools, title: "Tools",
+                                   contentSize: ToolsContent.contentSize),
+            target: { model },
+            makeContent: { ToolsContent() })
         window = ClassicWindow(
             contentRect: NSRect(origin: .zero, size: Self.initialSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -262,6 +277,10 @@ final class GalleryController: NSObject, NSWindowDelegate {
 
     // MARK: Window menu (reached through the window delegate)
 
+    @objc func showTools(_ sender: Any?) {
+        toolsPalette.isPresented ? toolsPalette.bringToFront() : toolsPalette.showPanel()
+    }
+
     @objc func showSwatches(_ sender: Any?) {
         swatchesPalette.isPresented ? swatchesPalette.bringToFront() : swatchesPalette.showPanel()
     }
@@ -311,6 +330,7 @@ final class GalleryController: NSObject, NSWindowDelegate {
         if model.specimen.italic { font = manager.convert(font, toHaveTrait: .italicFontMask) }
         var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: model.color]
         if model.specimen.underline { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+        attributes[.backgroundColor] = model.specimen.highlight
         specimenLabel.attributedStringValue = NSAttributedString(string: specimenText,
                                                                attributes: attributes)
         chooser.title = model.family

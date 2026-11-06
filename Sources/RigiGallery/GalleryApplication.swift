@@ -43,6 +43,8 @@ enum GalleryApplication {
         // controller, the window's delegate.
         let windowItem = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")
         let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Tools",
+                           action: #selector(GalleryController.showTools(_:)), keyEquivalent: "")
         windowMenu.addItem(withTitle: "Swatches",
                            action: #selector(GalleryController.showSwatches(_:)), keyEquivalent: "")
         windowMenu.addItem(withTitle: "Hide Palettes",
