@@ -87,6 +87,10 @@ public protocol PaletteContent: AnyObject {
 
   var paletteViewController: NSViewController { get }
   var paletteInitialFirstResponder: NSView? { get }
+  /// Commands for this palette, opened from the menu triangle at the right
+  /// of the floating panel's title bar. Nil shows no triangle. Asked each
+  /// time the menu opens, so it can reflect the current target.
+  var paletteMenu: NSMenu? { get }
 
   func retarget(to target: Target?)
   func paletteDidPresent(_ presentation: PalettePresentation)
@@ -95,6 +99,7 @@ public protocol PaletteContent: AnyObject {
 
 extension PaletteContent {
   public var paletteInitialFirstResponder: NSView? { nil }
+  public var paletteMenu: NSMenu? { nil }
 
   public func paletteDidPresent(_ presentation: PalettePresentation) {}
   public func paletteDidDismiss(_ presentation: PalettePresentation) {}
@@ -110,6 +115,7 @@ final class AnyPaletteContent {
   let viewController: NSViewController
 
   private let initialFirstResponder: @MainActor () -> NSView?
+  private let makeMenu: @MainActor () -> NSMenu?
   private let resolveTarget: @MainActor () -> Void
   private let clearTarget: @MainActor () -> Void
   private let didPresent: @MainActor (PalettePresentation) -> Void
@@ -121,6 +127,7 @@ final class AnyPaletteContent {
   ) {
     viewController = content.paletteViewController
     initialFirstResponder = { content.paletteInitialFirstResponder }
+    makeMenu = { content.paletteMenu }
     resolveTarget = { content.retarget(to: target()) }
     clearTarget = { content.retarget(to: nil) }
     didPresent = { content.paletteDidPresent($0) }
@@ -129,6 +136,10 @@ final class AnyPaletteContent {
 
   var preferredFirstResponder: NSView? {
     initialFirstResponder()
+  }
+
+  var menu: NSMenu? {
+    makeMenu()
   }
 
   func retarget() {

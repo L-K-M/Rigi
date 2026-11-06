@@ -92,6 +92,31 @@ public final class PaletteCenter: NSObject {
     dock.resetLayout()
   }
 
+  // MARK: - Workspaces
+
+  /// The saved workspaces' names, sorted as Finder sorts names.
+  public var workspaceNames: [String] { dock.workspaceNames }
+
+  /// Saves the current arrangement, and which palettes float, as a named
+  /// workspace in the application's defaults. A workspace of the same name
+  /// is replaced. Surrounding whitespace is ignored; the name must not be
+  /// empty.
+  public func saveWorkspace(named name: String) {
+    dock.saveWorkspace(named: name)
+  }
+
+  /// Arranges the palettes as workspace `name` saved them: floating
+  /// palettes close, and the workspace's palettes reopen in its groups and
+  /// places. Returns false when no workspace has that name.
+  @discardableResult
+  public func applyWorkspace(named name: String) -> Bool {
+    dock.applyWorkspace(named: name)
+  }
+
+  public func deleteWorkspace(named name: String) {
+    dock.deleteWorkspace(named: name)
+  }
+
   private func installFrontWindowObservers() {
     let center = NotificationCenter.default
 

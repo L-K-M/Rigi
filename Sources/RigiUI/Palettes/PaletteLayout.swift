@@ -148,14 +148,35 @@ struct PaletteLayout: Codable, Equatable {
   }
 }
 
-/// Reads and writes the layout. The application's defaults hold it by
-/// default; tests and standalone palettes keep it in memory.
+/// A named arrangement the person saved: the layout, and which palettes
+/// were floating in it.
+struct PaletteWorkspace: Codable, Equatable {
+  var layout: PaletteLayout
+  var openKinds: [String]
+
+  func validated() -> PaletteWorkspace {
+    let layout = layout.validated()
+    let known = Set(layout.groups.flatMap(\.kinds))
+    var seen = Set<String>()
+    return PaletteWorkspace(
+      layout: layout,
+      openKinds: openKinds.filter { known.contains($0) && seen.insert($0).inserted }
+    )
+  }
+}
+
+/// Reads and writes the layout and the saved workspaces. The application's
+/// defaults hold them by default; tests and standalone palettes keep them
+/// in memory.
 @MainActor
 struct PaletteLayoutStore {
   static let defaultsKey = "Rigi.paletteLayout"
+  static let workspacesKey = "Rigi.paletteWorkspaces"
 
   let load: @MainActor () -> PaletteLayout?
   let save: @MainActor (PaletteLayout) -> Void
+  let loadWorkspaces: @MainActor () -> [String: PaletteWorkspace]
+  let saveWorkspaces: @MainActor ([String: PaletteWorkspace]) -> Void
 
   static func userDefaults(_ defaults: UserDefaults = .standard) -> PaletteLayoutStore {
     PaletteLayoutStore(
@@ -171,15 +192,35 @@ struct PaletteLayoutStore {
       save: { layout in
         guard let data = try? JSONEncoder().encode(layout) else { return }
         defaults.set(data, forKey: defaultsKey)
+      },
+      loadWorkspaces: {
+        guard let data = defaults.data(forKey: workspacesKey),
+          let saved = try? JSONDecoder().decode([String: PaletteWorkspace].self, from: data)
+        else { return [:] }
+        // Versions other than this build's, like an unreadable entry, are
+        // dropped rather than half applied.
+        return saved
+          .filter { !$0.key.isEmpty && $0.value.layout.version == PaletteLayout.currentVersion }
+          .mapValues { $0.validated() }
+      },
+      saveWorkspaces: { workspaces in
+        guard let data = try? JSONEncoder().encode(workspaces) else { return }
+        defaults.set(data, forKey: workspacesKey)
       }
     )
   }
 
-  static func memory(_ initial: PaletteLayout? = nil) -> PaletteLayoutStore {
+  static func memory(
+    _ initial: PaletteLayout? = nil,
+    workspaces initialWorkspaces: [String: PaletteWorkspace] = [:]
+  ) -> PaletteLayoutStore {
     var stored = initial
+    var workspaces = initialWorkspaces
     return PaletteLayoutStore(
       load: { stored },
-      save: { stored = $0 }
+      save: { stored = $0 },
+      loadWorkspaces: { workspaces },
+      saveWorkspaces: { workspaces = $0 }
     )
   }
 }

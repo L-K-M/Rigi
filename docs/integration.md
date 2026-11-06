@@ -74,6 +74,16 @@ Palettes the application opens together at launch keep the tab the person last
 picked. `bringToFront()` and a later `showPanel()` select the palette's tab.
 `groupMembers(of:)` lists the kinds sharing a kind's panel.
 
+Give a palette commands of its own by returning a menu from `paletteMenu`.
+It is asked when the panel shows that palette, to decide whether to draw
+the triangle, and again each time the menu opens; build it fresh or update
+its items' enabled state for the current target.
+
+`saveWorkspace(named:)`, `applyWorkspace(named:)`, `deleteWorkspace(named:)`
+and `workspaceNames` keep named arrangements in the application's defaults
+under `Rigi.paletteWorkspaces`. The application owns the menu items and the
+name prompt.
+
 Bind the Tab key, when no text field is editing, to toggle
 `hideAll(except:)` and `restoreAll()`; check `isHidingPalettes`. Offer
 `resetLayout()` as a Reset Palettes or Reset Workspace command.

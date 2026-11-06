@@ -90,6 +90,7 @@ public final class PaletteChromeView: NSView {
     public var title: String {
         didSet {
             updateCloseButtonAccessibility()
+            updateMenuButtonAccessibility()
             needsDisplay = true
         }
     }
@@ -118,6 +119,16 @@ public final class PaletteChromeView: NSView {
     /// drags the window as a plain palette does.
     weak var titleBarDelegate: PaletteTitleBarDelegate?
 
+    /// Shows the menu triangle at the right end of the bar, for a palette
+    /// whose content offers a menu.
+    var showsMenuButton = false {
+        didSet {
+            guard showsMenuButton != oldValue else { return }
+            updateTabAccessibility()
+            needsDisplay = true
+        }
+    }
+
     /// Marks the bar as where a dragged palette lands as a tab when dropped.
     var isDropTarget = false {
         didSet {
@@ -131,6 +142,7 @@ public final class PaletteChromeView: NSView {
     private var declaredSizeConstraints: [NSLayoutConstraint] = []
     private var resizeBorder: PaletteResizeBorderView?
     private var tabElements: [PaletteTabAccessibilityElement] = []
+    private var menuButtonElement: PaletteTabAccessibilityElement?
 
     public init(title: String) {
         self.title = title
@@ -298,6 +310,10 @@ public final class PaletteChromeView: NSView {
             drawTitle(in: bar)
         }
 
+        if showsMenuButton {
+            drawMenuButton()
+        }
+
         if isDropTarget {
             drawDropTarget(in: bar)
         }
@@ -317,7 +333,8 @@ public final class PaletteChromeView: NSView {
         guard tabTitles.count > 1 else { return [] }
 
         let bar = titleBarRect
-        let available = max(0, bar.maxX - 6 - tabStripMinX)
+        let end = showsMenuButton ? menuButtonRect.minX : bar.maxX - 6
+        let available = max(0, end - tabStripMinX)
         let natural = tabTitles.map {
             ceil(ClassicText.engraved($0, size: 10.5, weight: .medium).size().width) + 2 * Self.tabPadding
         }
@@ -336,6 +353,24 @@ public final class PaletteChromeView: NSView {
     /// The tab under `point`, in this view's coordinates.
     func tabIndex(at point: NSPoint) -> Int? {
         tabRects.firstIndex { $0.contains(point) }
+    }
+
+    /// Where the menu triangle sits and takes clicks: the bar's right end.
+    var menuButtonRect: NSRect {
+        let bar = titleBarRect
+        return NSRect(x: bar.maxX - 18, y: bar.minY, width: 16, height: bar.height)
+    }
+
+    private func drawMenuButton() {
+        let rect = menuButtonRect
+        ClassicChrome.arrowColor(true).setFill()
+        let triangle = NSBezierPath()
+        let midX = rect.midX.rounded(), midY = rect.midY.rounded()
+        triangle.move(to: NSPoint(x: midX - 3.5, y: midY + 2))
+        triangle.line(to: NSPoint(x: midX + 3.5, y: midY + 2))
+        triangle.line(to: NSPoint(x: midX, y: midY - 2))
+        triangle.close()
+        triangle.fill()
     }
 
     private func drawTabs(in bar: NSRect) {
@@ -379,6 +414,7 @@ public final class PaletteChromeView: NSView {
     /// VoiceOver reads the tabs as a radio group of tab buttons, since they are
     /// drawn rather than built from controls.
     private func updateTabAccessibility() {
+        updateMenuButtonAccessibility()
         guard tabTitles.count > 1 else {
             tabElements = []
             return
@@ -402,7 +438,25 @@ public final class PaletteChromeView: NSView {
     }
 
     public override func accessibilityChildren() -> [Any]? {
-        (super.accessibilityChildren() ?? []) + tabElements
+        (super.accessibilityChildren() ?? []) + tabElements + (menuButtonElement.map { [$0] } ?? [])
+    }
+
+    private func updateMenuButtonAccessibility() {
+        guard showsMenuButton else {
+            menuButtonElement = nil
+            return
+        }
+
+        let element = menuButtonElement ?? PaletteTabAccessibilityElement()
+        element.setAccessibilityRole(.menuButton)
+        element.setAccessibilityLabel("\(title) Menu")
+        element.setAccessibilityParent(self)
+        element.setAccessibilityFrameInParentSpace(menuButtonRect)
+        element.onPress = { [weak self] in
+            guard let self else { return }
+            self.titleBarDelegate?.titleBarMenuButtonPressed(self)
+        }
+        menuButtonElement = element
     }
 
     private func drawTitle(in bar: NSRect) {
@@ -422,7 +476,9 @@ public final class PaletteChromeView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         guard titleBarRect.contains(point) else { return }
 
-        if let titleBarDelegate {
+        if showsMenuButton, menuButtonRect.contains(point), let titleBarDelegate {
+            titleBarDelegate.titleBarMenuButtonPressed(self)
+        } else if let titleBarDelegate {
             titleBarDelegate.titleBar(self, mouseDown: event, onTab: tabIndex(at: point))
         } else {
             window?.performDrag(with: event)
@@ -459,6 +515,8 @@ protocol PaletteTitleBarDelegate: AnyObject {
     func titleBar(_ chrome: PaletteChromeView, selectTabAt index: Int)
     /// The contextual menu for tab `tab`, or for the bar itself.
     func titleBar(_ chrome: PaletteChromeView, menuForTabAt tab: Int?) -> NSMenu?
+    /// The menu triangle was clicked or pressed.
+    func titleBarMenuButtonPressed(_ chrome: PaletteChromeView)
 }
 
 /// One drawn tab, as assistive technologies see it.

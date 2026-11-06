@@ -361,6 +361,63 @@ final class PaletteDock: NSObject {
     saveNow()
   }
 
+  // MARK: - Workspaces
+
+  private lazy var workspaces: [String: PaletteWorkspace] = store.loadWorkspaces()
+
+  var workspaceNames: [String] {
+    workspaces.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+  }
+
+  /// Saves the arrangement, and which palettes float, under `name`,
+  /// replacing a workspace of that name.
+  func saveWorkspace(named name: String) {
+    let name = Self.workspaceName(name)
+    precondition(!name.isEmpty, "A workspace needs a name")
+
+    let open = layout.groups.flatMap(\.kinds).filter {
+      palettes[$0]?.palette?.presentation == .panel
+    }
+    workspaces[name] = PaletteWorkspace(layout: layout, openKinds: open)
+    store.saveWorkspaces(workspaces)
+  }
+
+  /// Arranges the palettes as workspace `name` saved them: floating
+  /// palettes close, then the workspace's open palettes come up in its
+  /// groups and places. Returns false for an unknown name.
+  @discardableResult
+  func applyWorkspace(named name: String) -> Bool {
+    guard let workspace = workspaces[Self.workspaceName(name)] else { return false }
+
+    for palette in palettes.values.compactMap(\.palette) where palette.isFloating {
+      palette.close()
+    }
+    for id in Array(panels.keys) {
+      dissolvePanel(id)
+    }
+
+    hiddenGroups = []
+    openingGroups = []
+    detachOrigins = [:]
+    layout = workspace.layout
+    consultsLegacyFrames = false
+
+    for kind in workspace.openKinds {
+      palettes[kind]?.palette?.showPanel()
+    }
+    saveNow()
+    return true
+  }
+
+  func deleteWorkspace(named name: String) {
+    guard workspaces.removeValue(forKey: Self.workspaceName(name)) != nil else { return }
+    store.saveWorkspaces(workspaces)
+  }
+
+  private static func workspaceName(_ name: String) -> String {
+    name.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
   // MARK: - Moving, snapping and docking
 
   func beginDrag(group id: String, tab: Palette?, at point: NSPoint) -> PaletteDragSession {
@@ -579,6 +636,26 @@ final class PaletteDock: NSObject {
     scheduleSave()
   }
 
+  /// Shows or hides the triangle after `palette`'s content was retargeted,
+  /// when it is the palette its panel shows.
+  func paletteMenuMayHaveChanged(_ palette: Palette) {
+    guard let id = groupID(of: palette), displayedPalette(of: id) === palette,
+      let chrome = panels[id]?.panel.chrome
+    else { return }
+
+    chrome.showsMenuButton = palette.panelMenu != nil
+  }
+
+  /// Opens the shown palette's own menu under its title bar's triangle.
+  func popUpPaletteMenu(forGroup id: String) {
+    guard let panel = panels[id]?.panel, let menu = displayedPalette(of: id)?.panelMenu else {
+      return
+    }
+
+    let anchor = panel.chrome.menuButtonRect
+    menu.popUp(positioning: nil, at: NSPoint(x: anchor.minX, y: anchor.minY), in: panel.chrome)
+  }
+
   func menu(forGroup id: String, tab index: Int?) -> NSMenu? {
     guard let groupPanel = panels[id], !groupPanel.tabs.isEmpty else { return nil }
 
@@ -586,6 +663,16 @@ final class PaletteDock: NSObject {
     let tabs = groupPanel.tabs
     let palette = index.flatMap { tabs.indices.contains($0) ? tabs[$0] : nil }
       ?? (tabs.count == 1 ? tabs[0] : nil)
+
+    // The palette's own commands come first, as in its triangle's menu.
+    if let palette, let own = palette.panelMenu {
+      let item = NSMenuItem(title: palette.definition.title, action: nil, keyEquivalent: "")
+      // A copy: the content may hand out one menu it keeps, and a menu can
+      // hang under one item only.
+      item.submenu = own.copy() as? NSMenu
+      menu.addItem(item)
+      menu.addItem(.separator())
+    }
 
     if let palette {
       let title = palette.definition.title
@@ -767,6 +854,7 @@ final class PaletteDock: NSObject {
     panel.chrome.selectedTabIndex = tabs.firstIndex { $0 === selected } ?? 0
     panel.chrome.title = selected.definition.title
     panel.title = selected.definition.title
+    panel.chrome.showsMenuButton = selected.panelMenu != nil
 
     if let controller = selected.panelContentViewController {
       panel.embed(controller, contentSize: contentSize)
@@ -1196,6 +1284,10 @@ final class PaletteGroupPanel: NSObject, NSWindowDelegate, PaletteTitleBarDelega
   func titleBar(_ chrome: PaletteChromeView, menuForTabAt tab: Int?) -> NSMenu? {
     dock?.menu(forGroup: id, tab: tab)
   }
+
+  func titleBarMenuButtonPressed(_ chrome: PaletteChromeView) {
+    dock?.popUpPaletteMenu(forGroup: id)
+  }
 }
 
 /// One press-drag-release on a palette title bar: a tab sliding along its
@@ -1286,13 +1378,16 @@ private final class PaletteMenuAction: NSObject {
 
   static func item(_ title: String, handler: @escaping @MainActor () -> Void) -> NSMenuItem {
     let action = PaletteMenuAction(handler)
-    let item = NSMenuItem(title: title, action: #selector(perform(_:)), keyEquivalent: "")
+    // Not `perform(_:)`: that name is NSObject's performSelector:, which
+    // #selector resolves to, and AppKit would hand it the menu item as the
+    // selector to perform.
+    let item = NSMenuItem(title: title, action: #selector(run(_:)), keyEquivalent: "")
     item.target = action
     item.representedObject = action
     return item
   }
 
-  @objc private func perform(_ sender: Any?) {
+  @objc private func run(_ sender: Any?) {
     handler()
   }
 }
