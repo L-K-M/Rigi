@@ -245,9 +245,10 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
 
   private func prepareDetachment() -> NSWindow {
     // A floating palette's chooser raises it rather than tearing it off
-    // (see the tear-off contract), so a request for one only lends the
-    // panel it is in, leaving its state and the layout as they are.
+    // (see the tear-off contract), so a request for one raises it, hidden
+    // or not, and lends the panel it is in, leaving the layout alone.
     if presentation == .panel, let panel = dock.panel(showing: self) {
+      bringToFront()
       return panel
     }
 

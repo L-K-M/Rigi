@@ -520,6 +520,68 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertTrue(Self.titleBarIsOnScreen(top.frame), "\(top.frame)")
   }
 
+  func testAColumnRunningOffTheBottomStaysAColumn() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (b, _) = makePalette("b", title: "Beta", dock: dock)
+    a.showPanel()
+    b.showPanel()
+    let top = try XCTUnwrap(a.hostingPanel)
+    let lower = try XCTUnwrap(b.hostingPanel)
+    let topGroup = try XCTUnwrap(dock.groupID(of: a))
+    let lowerGroup = try XCTUnwrap(dock.groupID(of: b))
+    let screen = try XCTUnwrap(NSScreen.main?.visibleFrame)
+    // Alpha's title bar just inside the bottom edge; Beta hangs below it.
+    dock.move(topGroup, to: NSRect(
+      x: screen.midX, y: screen.minY + 20 - top.frame.height,
+      width: top.frame.width, height: top.frame.height))
+    lower.setFrame(
+      NSRect(x: top.frame.minX, y: top.frame.minY - lower.frame.height,
+             width: lower.frame.width, height: lower.frame.height),
+      display: false)
+    dock.dock(lowerGroup, below: topGroup)
+    XCTAssertFalse(Self.titleBarIsOnScreen(lower.frame))
+
+    NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
+    b.bringToFront()
+
+    // Dragging the column up brings Beta back; nothing severs it.
+    XCTAssertEqual(dock.dockedParent(of: lowerGroup), topGroup)
+    XCTAssertEqual(lower.frame.maxY, top.frame.minY)
+  }
+
+  func testAPanelHiddenWhileItsDisplayWentAwayComesBackOnScreen() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    a.showPanel()
+    let panel = try XCTUnwrap(a.hostingPanel)
+
+    dock.hideAll(except: [])
+    panel.setFrame(NSRect(origin: NSPoint(x: -6000, y: -5000), size: panel.frame.size), display: false)
+    dock.restoreAll()
+    XCTAssertTrue(Self.titleBarIsOnScreen(panel.frame), "\(panel.frame)")
+
+    dock.hideAll(except: [])
+    panel.setFrame(NSRect(origin: NSPoint(x: -6000, y: -5000), size: panel.frame.size), display: false)
+    a.showPanel()
+    XCTAssertTrue(Self.titleBarIsOnScreen(panel.frame), "\(panel.frame)")
+    XCTAssertFalse(dock.isHidingPalettes)
+  }
+
+  func testATearOffRequestForAHiddenFloatingPaletteRaisesIt() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    a.showPanel()
+    let panel = try XCTUnwrap(a.hostingPanel)
+    dock.hideAll(except: [])
+
+    let window = a.windowForDetach(selecting: nil)
+
+    XCTAssertIdentical(window, panel)
+    XCTAssertTrue(panel.isVisible)
+    XCTAssertFalse(dock.isHidingPalettes)
+  }
+
   private static func titleBarIsOnScreen(_ frame: NSRect) -> Bool {
     let bar = NSRect(
       x: frame.minX, y: frame.maxY - PaletteChromeView.titleBarHeight,

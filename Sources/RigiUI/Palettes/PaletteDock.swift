@@ -131,12 +131,14 @@ final class PaletteDock: NSObject {
       layout.groups[index].isCollapsed = false
     }
 
-    let wasOccupied = isOccupied(id)
+    // Coming back on screen, from closed or from hidden, is when a frame
+    // left on a display that has since gone shows up.
+    let wasOffScreen = !isOccupied(id) || hiddenGroups.contains(id)
     detachOrigins[kind] = nil
     hiddenGroups.remove(id)
     sync(id)
-    if !wasOccupied {
-      bringTitleBarOnScreen(id)
+    if wasOffScreen {
+      rescueIfStranded(id)
     }
     orderFront(id)
     scheduleSave()
@@ -151,7 +153,7 @@ final class PaletteDock: NSObject {
     layout.groups[index].isCollapsed = false
     hiddenGroups.remove(id)
     sync(id)
-    bringTitleBarOnScreen(id)
+    rescueIfStranded(id)
     orderFront(id)
     scheduleSave()
   }
@@ -333,6 +335,7 @@ final class PaletteDock: NSObject {
     let hidden = hiddenGroups
     hiddenGroups = []
     for id in hidden where isOccupied(id) {
+      rescueIfStranded(id)
       orderFront(id)
     }
   }
@@ -1038,27 +1041,32 @@ final class PaletteDock: NSObject {
   // MARK: - Displays and persistence
 
   /// Free panels first, so the columns hanging from them come back with
-  /// them; then any docked panel still stranded, as one whose column's top
-  /// shows nothing or is hidden.
+  /// them; then docked panels whose column has nothing showing above them.
   @objc private func screensDidChange(_: Notification) {
     let shown = shownGroupIDs()
     for id in shown where dockedParent(of: id) == nil {
-      bringTitleBarOnScreen(id)
+      rescueIfStranded(id)
     }
     for id in shown where dockedParent(of: id) != nil {
-      bringTitleBarOnScreen(id)
+      rescueIfStranded(id)
     }
     scheduleSave()
   }
 
   /// Moves group `id` onto the main screen when its title bar, the only
   /// handle it has, is on none: a display went away, or the panel reopened
-  /// where an earlier session left it. A docked group moved this way
-  /// leaves its column, which no longer has a place on screen for it.
+  /// where an earlier session left it.
+  ///
+  /// A docked group with a showing group above it is left alone: its
+  /// column may simply run off the bottom of a screen, and moving the
+  /// column's top brings it back. Only a docked group with nothing showing
+  /// above it, which no drag could reach, leaves its column to be rescued.
   @discardableResult
-  private func bringTitleBarOnScreen(_ id: String) -> Bool {
+  private func rescueIfStranded(_ id: String) -> Bool {
     let visibleFrames = NSScreen.screens.map(\.visibleFrame)
-    guard !visibleFrames.isEmpty, let frame = frame(of: id) else { return false }
+    guard !visibleFrames.isEmpty, !hasShowingGroupAbove(id), let frame = frame(of: id) else {
+      return false
+    }
 
     let bar = Self.titleBar(of: frame)
     guard !visibleFrames.contains(where: { $0.intersects(bar) }) else { return false }
@@ -1067,6 +1075,18 @@ final class PaletteDock: NSObject {
     setFrame(id, PalettePanel.constrained(frame, to: Self.mainVisibleFrame))
     layoutColumn(below: id)
     return true
+  }
+
+  private func hasShowingGroupAbove(_ id: String) -> Bool {
+    var visited: Set<String> = [id]
+    var current = dockedParent(of: id)
+    while let parent = current, visited.insert(parent).inserted {
+      if isOccupied(parent), !hiddenGroups.contains(parent) {
+        return true
+      }
+      current = dockedParent(of: parent)
+    }
+    return false
   }
 
   @objc private func applicationWillTerminate(_: Notification) {
