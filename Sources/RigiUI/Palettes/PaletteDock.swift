@@ -1368,13 +1368,16 @@ private final class PaletteMenuAction: NSObject {
 
   static func item(_ title: String, handler: @escaping @MainActor () -> Void) -> NSMenuItem {
     let action = PaletteMenuAction(handler)
-    let item = NSMenuItem(title: title, action: #selector(perform(_:)), keyEquivalent: "")
+    // Not `perform(_:)`: that name is NSObject's performSelector:, which
+    // #selector resolves to, and AppKit would hand it the menu item as the
+    // selector to perform.
+    let item = NSMenuItem(title: title, action: #selector(run(_:)), keyEquivalent: "")
     item.target = action
     item.representedObject = action
     return item
   }
 
-  @objc private func perform(_ sender: Any?) {
+  @objc private func run(_ sender: Any?) {
     handler()
   }
 }

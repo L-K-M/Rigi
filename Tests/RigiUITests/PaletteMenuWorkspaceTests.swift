@@ -57,6 +57,35 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     XCTAssertTrue(menu.items.contains { $0.title == "Close Alpha" })
   }
 
+  func testTheTitleBarMenusCommandsReachTheDock() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
+    let a = makePalette("a", title: "Alpha", dock: dock)
+    let b = makePalette("b", title: "Beta", dock: dock)
+    a.showPanel()
+    b.showPanel()
+    let group = try XCTUnwrap(dock.groupID(of: a))
+
+    // Choosing an item sends its action the way AppKit does.
+    func choose(_ title: String, tab: Int?) throws {
+      let menu = try XCTUnwrap(dock.menu(forGroup: group, tab: tab))
+      let item = try XCTUnwrap(menu.items.first { $0.title == title }, title)
+      let action = try XCTUnwrap(item.action)
+      XCTAssertTrue(NSApp.sendAction(action, to: item.target, from: item), title)
+    }
+
+    try choose("Collapse", tab: nil)
+    XCTAssertTrue(dock.isCollapsed(group))
+    try choose("Expand", tab: nil)
+    XCTAssertFalse(dock.isCollapsed(group))
+
+    try choose("Move Beta to a New Panel", tab: 1)
+    XCTAssertEqual(dock.members(of: kind("b")), [kind("b")])
+
+    try choose("Close Alpha", tab: nil)
+    XCTAssertFalse(a.isPresented)
+  }
+
   // MARK: - Workspaces
 
   func testAWorkspaceBringsBackItsGroupsPlacesAndOpenPalettes() throws {
