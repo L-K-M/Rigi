@@ -106,11 +106,15 @@ final class PalettePanelTests: XCTestCase {
       sizing: .resizable(minimumContentSize: PalettePanelTestGeometry.minimumContentSize)
     )
 
+    // Neither carries the window's resizable bit: with it, AppKit resizes a
+    // borderless window from its own edge and corner zones, the top edge
+    // included, and the top-right corner zone swallowed clicks on the title
+    // bar's menu triangle (seen on macOS 27). The bands below do the resizing.
     XCTAssertFalse(fixed.styleMask.contains(.resizable))
-    XCTAssertTrue(resizable.styleMask.contains(.resizable))
+    XCTAssertFalse(resizable.styleMask.contains(.resizable))
 
-    // A borderless window has no frame view, so the edges are the panel's own
-    // and a palette that cannot be resized must not grow any.
+    // The edges are the panel's own, and a palette that cannot be resized
+    // must not grow any.
     XCTAssertNil(
       try XCTUnwrap(fixed.contentView).descendants
         .first { $0 is PaletteResizeBorderView }

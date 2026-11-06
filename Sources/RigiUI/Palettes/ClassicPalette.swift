@@ -26,9 +26,8 @@ public class ClassicPaletteWindow: NSPanel {
     }
 
     /// The style mask is fixed at construction, so panels inside the module
-    /// that need extra bits — the generic palette panel adds `.closable`, and
-    /// `.resizable` for resizable palettes — state theirs here on the same
-    /// shell.
+    /// that need extra bits — the generic palette panel adds `.closable` —
+    /// state theirs here on the same shell.
     init(contentSize: NSSize, styleMask: NSWindow.StyleMask) {
         super.init(contentRect: NSRect(origin: .zero, size: contentSize),
                    styleMask: styleMask,

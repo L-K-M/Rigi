@@ -177,26 +177,31 @@ final class PalettePanel: ClassicPaletteWindow {
 
   var embeddedController: NSViewController? { paletteViewController.embeddedController }
 
-  /// Sets the style mask, resize bands and size limits for `sizing`. The
-  /// frame itself is the caller's to set: limits alone never move a window.
+  /// Sets the resize bands and size limits for `sizing`. The frame itself
+  /// is the caller's to set: limits alone never move a window.
+  ///
+  /// The window never carries `.resizable`, whatever the sizing. With it,
+  /// AppKit resizes even a borderless window from edge and corner zones of
+  /// its own: the top edge, which belongs to the title bar, and a corner
+  /// zone over the title bar's menu triangle that swallowed clicks on it
+  /// (seen on macOS 27). The palette's own bands do all the resizing.
   func apply(_ sizing: PalettePanelSizing) {
+    styleMask.remove(.resizable)
+
     switch sizing {
     case .fixed(let contentSize):
-      styleMask.remove(.resizable)
       chrome.setResizeBorderEnabled(false)
       paletteViewController.setCollapsed(false)
       contentMinSize = Self.panelSize(forContentSize: contentSize)
       contentMaxSize = contentMinSize
 
     case .resizable(let minimumContentSize):
-      styleMask.insert(.resizable)
       chrome.setResizeBorderEnabled(true)
       paletteViewController.setCollapsed(false)
       contentMinSize = Self.panelSize(forContentSize: minimumContentSize)
       contentMaxSize = PaletteMetrics.maximumContentSize
 
     case .collapsed(let width):
-      styleMask.remove(.resizable)
       chrome.setResizeBorderEnabled(false)
       paletteViewController.setCollapsed(true)
       contentMinSize = Self.panelSize(forContentSize: NSSize(width: width, height: 0))

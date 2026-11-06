@@ -42,6 +42,31 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     XCTAssertLessThanOrEqual(lastTab.maxX, chrome.menuButtonRect.minX)
   }
 
+  /// The view half of the triangle's hit area: no band or tab view lies over
+  /// it. The window half, AppKit's own resize zones, is kept off by the
+  /// style mask (PalettePanelTests).
+  func testEveryPointOfTheTriangleTakesTheClickRatherThanTheResizeBand() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let a = makePalette("a", title: "Alpha", dock: dock, menu: ["New", "Delete"],
+                        sizing: .resizable(minimumContentSize: NSSize(width: 120, height: 80)))
+    a.showPanel()
+    let panel = try XCTUnwrap(a.hostingPanel)
+    let chrome = panel.chrome
+    let content = try XCTUnwrap(panel.contentView)
+    XCTAssertTrue(chrome.showsMenuButton)
+
+    let rect = chrome.menuButtonRect
+    var x = rect.minX + 0.5
+    while x < rect.maxX {
+      let point = chrome.convert(NSPoint(x: x, y: rect.midY), to: nil)
+      let hit = content.hitTest(point)
+      XCTAssertTrue(
+        hit.map { $0 === chrome || $0.isDescendant(of: chrome) } ?? false,
+        "a press at \(x - rect.minX) pt into the triangle's \(rect.width) pt goes to \(String(describing: hit))")
+      x += 1
+    }
+  }
+
   func testTheTitleBarMenuLeadsWithThePalettesOwnCommands() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     let a = makePalette("a", title: "Alpha", dock: dock, menu: ["New", "Delete"])
@@ -212,12 +237,14 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     _ identifier: String,
     title: String,
     dock: PaletteDock,
-    menu: [String]? = nil
+    menu: [String]? = nil,
+    sizing: PaletteSizing = .fixed
   ) -> Palette {
     _ = NSApplication.shared
     let palette = Palette(
       definition: PaletteDefinition(
-        kind: kind(identifier), title: title, contentSize: NSSize(width: 220, height: 160)),
+        kind: kind(identifier), title: title, contentSize: NSSize(width: 220, height: 160),
+        sizing: sizing),
       target: { NSObject() },
       makeContent: { MenuTestContent(menuTitles: menu) },
       dock: dock
