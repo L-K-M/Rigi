@@ -440,7 +440,7 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertEqual(dock.members(of: kind("b")), [kind("a"), kind("b")])
   }
 
-  func testDetachingAFloatingTabTakesItOffItsOldPanel() throws {
+  func testAFloatingPaletteLendsItsPanelWithoutChangingTheLayout() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
     let (a, _) = makePalette("a", title: "Alpha", dock: dock)
@@ -449,11 +449,82 @@ final class PaletteGroupTests: XCTestCase {
     b.showPanel()
     let shared = try XCTUnwrap(a.hostingPanel)
 
+    // A floating palette's chooser raises it rather than tearing off, so a
+    // tear-off request for one is a no-op that cannot disturb the layout.
     let window = b.windowForDetach(selecting: nil)
+    b.cancelDetach()
 
-    XCTAssertFalse(window === shared)
-    XCTAssertEqual(shared.chrome.tabTitles, [], "Only Alpha is left on the old panel")
-    XCTAssertEqual(shared.chrome.title, "Alpha")
+    XCTAssertIdentical(window, shared)
+    XCTAssertEqual(dock.members(of: kind("b")), [kind("a"), kind("b")])
+    XCTAssertTrue(b.isFloating)
+    XCTAssertTrue(shared.isVisible)
+    XCTAssertEqual(shared.chrome.tabTitles, ["Alpha", "Beta"])
+  }
+
+  func testClosingAPaletteMidTearOffPutsTheLayoutBack() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (b, _) = makePalette("b", title: "Beta", dock: dock)
+    a.showPanel()
+
+    let torn = b.windowForDetach(selecting: nil)
+    b.close()
+
+    XCTAssertEqual(dock.members(of: kind("b")), [kind("a"), kind("b")])
+    XCTAssertFalse(torn.isVisible)
+
+    // A later drag records its own origin: abandoning it keeps the group.
+    _ = b.windowForDetach(selecting: nil)
+    b.cancelDetach()
+    XCTAssertEqual(dock.members(of: kind("b")), [kind("a"), kind("b")])
+  }
+
+  func testAskingForGroupMembersChangesNothing() {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+
+    XCTAssertEqual(dock.members(of: kind("x")), [kind("x")])
+    XCTAssertTrue(dock.layout.groups.isEmpty)
+
+    dock.setDefaults([PaletteGroupDefault([kind("x"), kind("y")])])
+    XCTAssertEqual(dock.members(of: kind("y")), [kind("x"), kind("y")])
+    XCTAssertTrue(dock.layout.groups.isEmpty)
+  }
+
+  func testPanelsLeftOffScreenComeBack() throws {
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (c, _) = makePalette("c", title: "Gamma", dock: dock)
+    a.showPanel()
+    c.showPanel()
+    let top = try XCTUnwrap(a.hostingPanel)
+    let lower = try XCTUnwrap(c.hostingPanel)
+    let topGroup = try XCTUnwrap(dock.groupID(of: a))
+    let lowerGroup = try XCTUnwrap(dock.groupID(of: c))
+    let farAway = NSRect(origin: NSPoint(x: -6000, y: -5000), size: top.frame.size)
+    dock.move(topGroup, to: farAway)
+    lower.setFrame(
+      NSRect(origin: NSPoint(x: farAway.minX, y: farAway.minY - lower.frame.height), size: lower.frame.size),
+      display: false
+    )
+    dock.dock(lowerGroup, below: topGroup)
+
+    // The column's top shows nothing, and the display it was on goes away.
+    a.close()
+    NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
+
+    XCTAssertTrue(Self.titleBarIsOnScreen(lower.frame), "\(lower.frame)")
+
+    // A panel reopened where its frame was left is pulled back too.
+    a.showPanel()
+    XCTAssertTrue(Self.titleBarIsOnScreen(top.frame), "\(top.frame)")
+  }
+
+  private static func titleBarIsOnScreen(_ frame: NSRect) -> Bool {
+    let bar = NSRect(
+      x: frame.minX, y: frame.maxY - PaletteChromeView.titleBarHeight,
+      width: frame.width, height: PaletteChromeView.titleBarHeight)
+    return NSScreen.screens.contains { $0.visibleFrame.intersects(bar) }
   }
 
   func testInsertingIntoAColumnKeepsTheLowerPanelsWhereTheyWere() throws {

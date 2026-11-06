@@ -212,6 +212,10 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
   private func closePanel() {
     guard occupiesPanel else { return }
 
+    // Closed while a tear-off is still pending: the drag never landed, so
+    // the layout it set up goes back as an abandoned drag's would.
+    let abandonsDetachment = detachmentPrepared
+
     if presentation == .panel {
       panelContent?.dismissed(from: .panel)
     }
@@ -219,7 +223,11 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
     detachmentPrepared = false
     panelContent?.releaseTarget()
     transition(to: nil)
-    dock.didClose(self)
+    if abandonsDetachment {
+      dock.cancelDetachment(self)
+    } else {
+      dock.didClose(self)
+    }
   }
 
   private func showPanelNow() {
@@ -236,6 +244,13 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
   }
 
   private func prepareDetachment() -> NSWindow {
+    // A floating palette's chooser raises it rather than tearing it off
+    // (see the tear-off contract), so a request for one only lends the
+    // panel it is in, leaving its state and the layout as they are.
+    if presentation == .panel, let panel = dock.panel(showing: self) {
+      return panel
+    }
+
     let content = ensurePanelContent()
 
     content.retarget()

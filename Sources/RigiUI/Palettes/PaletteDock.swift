@@ -95,10 +95,23 @@ final class PaletteDock: NSObject {
     defaults = groups
   }
 
-  /// The kinds sharing a panel with `kind`, in tab order, closed ones included.
+  /// The kinds sharing a panel with `kind`, in tab order, closed ones
+  /// included. A kind with no group yet reports the one it would join;
+  /// asking creates nothing.
   func members(of kind: PaletteKind) -> [PaletteKind] {
-    let index = ensureGroupIndex(for: kind.identifier)
-    return layout.groups[index].kinds.map(PaletteKind.init)
+    let identifier = kind.identifier
+    let kinds = layout.index(ofGroupContaining: identifier).map { layout.groups[$0].kinds }
+      ?? prospectiveKinds(for: identifier)
+    return kinds.map(PaletteKind.init)
+  }
+
+  /// The kinds a new group for `kind` starts with: its default group, less
+  /// the kinds that already live in another group.
+  private func prospectiveKinds(for kind: String) -> [String] {
+    let template = defaults.first { $0.kinds.contains { $0.identifier == kind } }
+    return (template?.kinds.map(\.identifier) ?? [kind]).filter {
+      $0 == kind || layout.index(ofGroupContaining: $0) == nil
+    }
   }
 
   // MARK: - Showing and closing
@@ -118,9 +131,13 @@ final class PaletteDock: NSObject {
       layout.groups[index].isCollapsed = false
     }
 
+    let wasOccupied = isOccupied(id)
     detachOrigins[kind] = nil
     hiddenGroups.remove(id)
     sync(id)
+    if !wasOccupied {
+      bringTitleBarOnScreen(id)
+    }
     orderFront(id)
     scheduleSave()
   }
@@ -134,6 +151,7 @@ final class PaletteDock: NSObject {
     layout.groups[index].isCollapsed = false
     hiddenGroups.remove(id)
     sync(id)
+    bringTitleBarOnScreen(id)
     orderFront(id)
     scheduleSave()
   }
@@ -609,9 +627,7 @@ final class PaletteDock: NSObject {
     }
 
     let template = defaults.first { $0.kinds.contains { $0.identifier == kind } }
-    let kinds = (template?.kinds.map(\.identifier) ?? [kind]).filter {
-      $0 == kind || layout.index(ofGroupContaining: $0) == nil
-    }
+    let kinds = prospectiveKinds(for: kind)
 
     var group = PaletteLayout.Group(id: UUID().uuidString, kinds: kinds)
     group.selected = kinds.first
@@ -1021,17 +1037,36 @@ final class PaletteDock: NSObject {
 
   // MARK: - Displays and persistence
 
+  /// Free panels first, so the columns hanging from them come back with
+  /// them; then any docked panel still stranded, as one whose column's top
+  /// shows nothing or is hidden.
   @objc private func screensDidChange(_: Notification) {
-    let visibleFrames = NSScreen.screens.map(\.visibleFrame)
-    for id in shownGroupIDs() where dockedParent(of: id) == nil {
-      guard let frame = frame(of: id) else { continue }
-      let bar = Self.titleBar(of: frame)
-      guard !visibleFrames.contains(where: { $0.intersects(bar) }) else { continue }
-
-      setFrame(id, PalettePanel.constrained(frame, to: Self.mainVisibleFrame))
-      layoutColumn(below: id)
+    let shown = shownGroupIDs()
+    for id in shown where dockedParent(of: id) == nil {
+      bringTitleBarOnScreen(id)
+    }
+    for id in shown where dockedParent(of: id) != nil {
+      bringTitleBarOnScreen(id)
     }
     scheduleSave()
+  }
+
+  /// Moves group `id` onto the main screen when its title bar, the only
+  /// handle it has, is on none: a display went away, or the panel reopened
+  /// where an earlier session left it. A docked group moved this way
+  /// leaves its column, which no longer has a place on screen for it.
+  @discardableResult
+  private func bringTitleBarOnScreen(_ id: String) -> Bool {
+    let visibleFrames = NSScreen.screens.map(\.visibleFrame)
+    guard !visibleFrames.isEmpty, let frame = frame(of: id) else { return false }
+
+    let bar = Self.titleBar(of: frame)
+    guard !visibleFrames.contains(where: { $0.intersects(bar) }) else { return false }
+
+    undock(id)
+    setFrame(id, PalettePanel.constrained(frame, to: Self.mainVisibleFrame))
+    layoutColumn(below: id)
+    return true
   }
 
   @objc private func applicationWillTerminate(_: Notification) {
