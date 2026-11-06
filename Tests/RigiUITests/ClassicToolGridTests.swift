@@ -173,4 +173,48 @@ final class ClassicToolGridTests: XCTestCase {
         XCTAssertEqual(cells[1].accessibilityValue() as? NSNumber, NSNumber(value: true))
         XCTAssertEqual(cells[0].accessibilityValue() as? NSNumber, NSNumber(value: false))
     }
+
+    // MARK: Review fixes
+
+    func testADisabledGridIgnoresVoiceOverPicksAndSaysItIsDisabled() throws {
+        let target = ActionTarget()
+        let grid = ClassicToolGrid(slots: [ClassicToolGrid.Slot(tools: [tool("a"), tool("b")])])
+        grid.target = target
+        grid.action = #selector(ActionTarget.act(_:))
+        grid.selectTool(id: "a")
+        grid.isEnabled = false
+
+        let cell = try XCTUnwrap(grid.accessibilityChildren()?.first as? NSAccessibilityElement)
+        XCTAssertFalse(cell.isAccessibilityEnabled())
+        _ = cell.accessibilityPerformPress()
+        grid.cycleTool(inSlot: 0, sendsAction: true)
+
+        XCTAssertEqual(target.count, 0)
+        XCTAssertEqual(grid.selectedToolID, "a")
+
+        grid.isEnabled = true
+        XCTAssertTrue(cell.isAccessibilityEnabled())
+    }
+
+    func testAShorterGroupInTheSameSlotStillPicksTheToolItShows() {
+        let target = ActionTarget()
+        let grid = ClassicToolGrid(slots: [ClassicToolGrid.Slot(tools: [tool("a"), tool("b"), tool("c")])])
+        grid.target = target
+        grid.action = #selector(ActionTarget.act(_:))
+        grid.selectTool(id: "c")
+
+        grid.slots = [ClassicToolGrid.Slot(tools: [tool("x")])]
+        grid.selectCurrentTool(inSlot: 0, sendsAction: true)
+
+        XCTAssertEqual(grid.selectedToolID, "x")
+        XCTAssertEqual(target.count, 1)
+    }
+
+    func testOnlyAMovementPastTheThresholdCountsAsADragToTheFlyout() {
+        let start = NSPoint(x: 10, y: 10)
+        XCTAssertFalse(ClassicToolGrid.isDrag(from: start, to: NSPoint(x: 11, y: 11)))
+        XCTAssertFalse(ClassicToolGrid.isDrag(from: start, to: NSPoint(x: 12, y: 10)))
+        XCTAssertTrue(ClassicToolGrid.isDrag(from: start, to: NSPoint(x: 14, y: 10)))
+        XCTAssertTrue(ClassicToolGrid.isDrag(from: start, to: NSPoint(x: 10, y: 6)))
+    }
 }

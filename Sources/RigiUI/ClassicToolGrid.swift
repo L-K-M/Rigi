@@ -164,6 +164,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
 
     private var gridLayout = ClassicToolGridLayout()
     private var pressedSlot: Int?
+    private var pressLocation: NSPoint = .zero
     private var flyoutSlot: Int?
     private var toolTipTags: [NSView.ToolTipTag: Int] = [:]
     private var accessibilityCells: [CellAccessibilityElement] = []
@@ -189,7 +190,10 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
     }
 
     public override var isEnabled: Bool {
-        didSet { needsDisplay = true }
+        didSet {
+            needsDisplay = true
+            syncAccessibility()
+        }
     }
 
     public override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -224,6 +228,9 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
     /// choice and Option-click alike — so the action goes out exactly once.
     /// The tool becomes its slot's current tool and the grid's selection.
     func select(_ toolIndex: Int, inSlot slot: Int, sendsAction: Bool) {
+        // A pick by the person (clicks, flyout, Option-click, VoiceOver) is
+        // refused while disabled; the app may still reflect its own choice.
+        if sendsAction && !isEnabled { return }
         guard slots.indices.contains(slot),
               slots[slot].tools.indices.contains(toolIndex) else { return }
         gridLayout.setCurrentTool(toolIndex, forSlot: slot)
@@ -261,6 +268,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
             return
         }
         pressedSlot = slot
+        pressLocation = convert(event.locationInWindow, from: nil)
         needsDisplay = true
         if slots[slot].isGroup {
             perform(#selector(holdElapsed), with: nil, afterDelay: Self.flyoutHoldDelay)
@@ -269,7 +277,9 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
 
     public override func mouseDragged(with event: NSEvent) {
         guard let slot = pressedSlot,
-              slots.indices.contains(slot), slots[slot].isGroup else { return }
+              slots.indices.contains(slot), slots[slot].isGroup,
+              Self.isDrag(from: pressLocation, to: convert(event.locationInWindow, from: nil))
+        else { return }
         cancelHold()
         openFlyout(for: slot)
     }
@@ -286,6 +296,14 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
 
     private func slotIndex(for event: NSEvent) -> Int? {
         gridLayout.hitTest(convert(event.locationInWindow, from: nil), slotCount: slots.count)
+    }
+
+    /// How far a press may wander before it counts as a drag to the
+    /// flyout; a hand that shakes a point or two is still clicking.
+    static let dragThreshold: CGFloat = 3
+
+    static func isDrag(from start: NSPoint, to point: NSPoint) -> Bool {
+        hypot(point.x - start.x, point.y - start.y) > dragThreshold
     }
 
     // MARK: Flyout
@@ -376,6 +394,12 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
 
     private func syncAfterModelChange() {
         gridLayout.setSlotCount(slots.count)
+        // A slot that now holds fewer tools shows its first one again, so
+        // what it draws and what a click picks stay the same tool.
+        for (slot, contents) in slots.enumerated()
+        where gridLayout.currentToolIndex(forSlot: slot) >= contents.tools.count {
+            gridLayout.setCurrentTool(0, forSlot: slot)
+        }
         invalidateIntrinsicContentSize()
         rebuildToolTips()
         syncAccessibility()
@@ -419,6 +443,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
             element.setAccessibilityFrameInParentSpace(gridLayout.frame(forSlot: slot))
             let tool = currentTool(inSlot: slot)
             element.setAccessibilityLabel(tool?.name ?? "")
+            element.setAccessibilityEnabled(isEnabled)
             element.setAccessibilityValue(NSNumber(value: tool != nil && tool?.id == selectedToolID))
         }
     }
