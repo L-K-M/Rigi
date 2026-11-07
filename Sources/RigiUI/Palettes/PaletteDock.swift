@@ -338,6 +338,9 @@ final class PaletteDock: NSObject {
       rescueIfStranded(id)
       orderFront(id)
     }
+    // Restoring can move a panel whose display went away; save that place
+    // now rather than waiting for the next interaction or quit.
+    saveNow()
   }
 
   // MARK: - Reset
