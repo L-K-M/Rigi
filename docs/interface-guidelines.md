@@ -12,6 +12,9 @@ Run `swift run RigiGallery` for the executable examples.
   gray workspace, and gradient chrome form one coordinated palette.
 - Use `ClassicChrome` and the shared views instead of copying drawing constants
   into an application. A surface mutes when its document window is inactive.
+  App-owned chrome drawn with these primitives, such as a ruler, conforms to
+  `ClassicChromeDrawing` to opt into activation redraw. Document/canvas views
+  do not conform, so changing windows does not invalidate their content.
 - Raised bezels mean actionable controls. Sunken bezels mean a selection,
   active color well, or chooser whose palette is already floating.
 - Use engraved text for chrome labels and status, ordinary text for editable

@@ -107,7 +107,7 @@ public struct ClassicToolGridLayout {
 /// id, not by slot and index. Selection is radio-style: `selectedToolID`
 /// names one tool, and every user pick (click, flyout choice, Option-click,
 /// VoiceOver press) reports the action to the target exactly once.
-public final class ClassicToolGrid: NSControl, NSViewToolTipOwner {
+public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChromeDrawing {
 
     /// One tool in the palette. `name` feeds tool tips, the flyout and
     /// VoiceOver; `shortcut` is the key that picks the tool from the

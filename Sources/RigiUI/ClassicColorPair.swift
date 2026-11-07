@@ -56,7 +56,7 @@ public struct ClassicColorPairLayout {
 /// person asked for; it never changes its colors itself. Set `foreground`
 /// and `background` from the application's state, including after a swap
 /// or reset.
-public final class ClassicColorPair: NSView, NSViewToolTipOwner {
+public final class ClassicColorPair: NSView, NSViewToolTipOwner, ClassicChromeDrawing {
 
     public var foreground: NSColor = .black {
         didSet { colorsDidChange() }

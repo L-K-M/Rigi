@@ -41,6 +41,14 @@ enum GallerySmokeTest {
 
         settle()
         window.layoutIfNeeded()
+        // A consumer-owned view opts in through the public API, without
+        // subclassing a Rigi backing view or importing internals.
+        let chrome = GalleryChromeProbe(frame: .zero)
+        window.contentView?.addSubview(chrome)
+        chrome.invalidations = 0
+        NotificationCenter.default.post(name: NSWindow.didResignMainNotification, object: window)
+        check(chrome.invalidations > 0, "app-owned chrome participates in activation redraw")
+        chrome.removeFromSuperview()
         check(window.isVisible, "window ordered front")
         check(window.contentView?.subviews.contains { $0 is ClassicPanelView } == true,
               "panel surface")
@@ -224,6 +232,18 @@ enum GalleryScreenshot {
         }
         print("screenshot: wrote \(path) (\(bitmap.pixelsWide)×\(bitmap.pixelsHigh))")
         return 0
+    }
+}
+
+@MainActor
+private final class GalleryChromeProbe: NSView, ClassicChromeDrawing {
+    var invalidations = 0
+    override var needsDisplay: Bool {
+        get { super.needsDisplay }
+        set {
+            if newValue { invalidations += 1 }
+            super.needsDisplay = newValue
+        }
     }
 }
 

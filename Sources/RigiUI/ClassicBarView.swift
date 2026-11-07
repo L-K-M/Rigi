@@ -11,7 +11,7 @@ public enum ClassicMetrics {
 
 /// A classic backing for app-owned toolbar or inspector content.
 /// Subclass only to compose controls; editing semantics belong to the app.
-open class ClassicBarView: NSView {
+open class ClassicBarView: NSView, ClassicChromeDrawing {
     public enum Style { case toolbar, panel }
 
     private let style: Style
@@ -50,7 +50,7 @@ open class ClassicBarView: NSView {
 
 /// Native menu/keyboard/accessibility behavior with Rigi's bezel. Use this when
 /// an inspector needs AppKit's represented objects, tags, or mixed menu states.
-public final class ClassicPopUpButton: NSPopUpButton {
+public final class ClassicPopUpButton: NSPopUpButton, ClassicChromeDrawing {
     public override var intrinsicContentSize: NSSize {
         let size = super.intrinsicContentSize
         return NSSize(width: size.width, height: ClassicChrome.controlHeight)
