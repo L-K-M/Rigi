@@ -133,8 +133,8 @@ public enum ClassicChrome {
 
 // MARK: - Activation redraw
 
-/// Repaints a ClassicWindow's whole view tree when its main/key state changes,
-/// so chrome drawn through `ClassicChrome.active(for:)` mutes and un-mutes like
+/// Repaints a ClassicWindow's chrome when its main/key state changes,
+/// so views drawn through `ClassicChrome.active(for:)` mute and un-mute like
 /// the classic title bar does. Installed once, from ClassicWindow's initializer.
 enum ClassicChromeActivation {
 
@@ -159,7 +159,7 @@ enum ClassicChromeActivation {
         guard let view else { return }
         // Only chrome-drawing views repaint; walking the tree is cheap, but
         // setting needsDisplay on an app document view would force its full
-        // redraw on every window activation change (chonk finding 17).
+        // redraw on every window activation change.
         if view is any ClassicChromeDrawing { view.needsDisplay = true }
         view.subviews.forEach { invalidate($0) }
     }
