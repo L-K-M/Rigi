@@ -321,9 +321,20 @@ final class GalleryController: NSObject, NSWindowDelegate {
         PaletteCenter.shared.applyWorkspace(named: Self.galleryWorkspace)
     }
 
+    /// The Appearance menu's pick: the consumer-owned preference, applied
+    /// live. Rigi keeps no persistence of its own.
+    @objc func appearanceSchemeChosen(_ sender: NSMenuItem) {
+        guard let scheme = sender.representedObject as? ClassicChromeScheme else { return }
+        ClassicChrome.apply(scheme: scheme)
+    }
+
     @objc func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(togglePalettes(_:)) {
             item.title = PaletteCenter.shared.isHidingPalettes ? "Show Palettes" : "Hide Palettes"
+        }
+        if item.action == #selector(appearanceSchemeChosen(_:)),
+           let scheme = item.representedObject as? ClassicChromeScheme {
+            item.state = ClassicChrome.scheme == scheme ? .on : .off
         }
         if item.action == #selector(applyWorkspace(_:)) {
             return PaletteCenter.shared.workspaceNames.contains(Self.galleryWorkspace)

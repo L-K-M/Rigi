@@ -34,7 +34,7 @@ public struct PickerItem: Equatable {
 ///     double-click edits instead of committing (STYLES.md §6.1).
 ///   • `allowsReordering` + `onReorder` — rows can be dragged to reorder (the
 ///     Style Library window; disabled while a filter is active).
-public final class PickerListView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, ClassicChromeDrawing {
+public final class PickerListView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, ClassicChromeDrawing, ClassicChromeSchemeAware {
 
     /// Selection landed on an item by user action (click, arrows, filter).
     public var onPick: ((PickerItem) -> Void)?
@@ -87,10 +87,10 @@ public final class PickerListView: NSView, NSTableViewDataSource, NSTableViewDel
         scroll.hasVerticalScroller = true
         scroll.borderType = .noBorder
         scroll.drawsBackground = true
-        scroll.backgroundColor = .white
+        scroll.backgroundColor = ClassicChrome.wellFill()
 
         hintLabel.font = NSFont.systemFont(ofSize: 10)
-        hintLabel.textColor = NSColor(calibratedWhite: 0.45, alpha: 1)
+        hintLabel.textColor = ClassicChrome.secondaryText()
         hintLabel.alignment = .center
         hintLabel.lineBreakMode = .byTruncatingTail
 
@@ -117,10 +117,19 @@ public final class PickerListView: NSView, NSTableViewDataSource, NSTableViewDel
 
     public func setHint(_ hint: String) { hintLabel.stringValue = hint }
 
+    /// The well fill, hint, and dimmed-row colors live in view state rather
+    /// than `draw`, so a scheme change refreshes them and reconfigures the
+    /// visible rows.
+    func chromeSchemeDidChange() {
+        scroll.backgroundColor = ClassicChrome.wellFill()
+        hintLabel.textColor = ClassicChrome.secondaryText()
+        tableView.reloadData()
+    }
+
     public override func draw(_ dirtyRect: NSRect) {
-        // Hairline rules above and below the list, so the white well reads as
+        // Hairline rules above and below the list, so the well reads as
         // inset on the palette's gradient body.
-        NSColor(calibratedWhite: 0.74, alpha: 1).setFill()
+        ClassicChrome.listWellRule().setFill()
         let frame = scroll.frame
         NSRect(x: 0, y: frame.maxY, width: bounds.width, height: 1).fill()
         NSRect(x: 0, y: frame.minY - 1, width: bounds.width, height: 1).fill()
@@ -335,7 +344,7 @@ private final class PickerRowView: NSView, ClassicChromeDrawing {
     func configure(item: PickerItem, font: NSFont, showsEditWell: Bool) {
         label.stringValue = item.isSeparator ? item.title.uppercased() : item.title
         label.font = font
-        label.textColor = item.dimmed ? NSColor(calibratedWhite: 0.45, alpha: 1) : .labelColor
+        label.textColor = item.dimmed ? ClassicChrome.secondaryText() : .labelColor
         label.toolTip = item.title
         self.showsEditWell = showsEditWell
         // Reserve the well's width only in editable lists, so the popovers'

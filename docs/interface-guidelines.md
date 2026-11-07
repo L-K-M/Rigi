@@ -8,13 +8,21 @@ Run `swift run RigiGallery` for the executable examples.
 
 ## Appearance
 
-- Use the light Aqua appearance for Rigi windows. White document surfaces,
+- The default chrome is the light Aqua appearance: white document surfaces,
   gray workspace, and gradient chrome form one coordinated palette.
+  `ClassicChromeScheme` offers opt-in `classicLight`, `neutralGray`, and
+  `dark` chrome palettes. The application owns the choice and calls
+  `ClassicChrome.apply(scheme:)` on the main thread when its preference
+  changes; Rigi keeps no persistence of its own. A scheme recolors chrome
+  only — document and canvas content keeps the window's appearance.
+  Increase Contrast strengthens chrome text and meaningful outlines in
+  every scheme, classicLight included.
 - Use `ClassicChrome` and the shared views instead of copying drawing constants
   into an application. A surface mutes when its document window is inactive.
   App-owned chrome drawn with these primitives, such as a ruler, conforms to
-  `ClassicChromeDrawing` to opt into activation redraw. Document/canvas views
-  do not conform, so changing windows does not invalidate their content.
+  `ClassicChromeDrawing` to opt into activation and scheme redraw. Document/canvas views
+  do not conform, so changing windows or schemes does not invalidate their
+  content.
 - Raised bezels mean actionable controls. Sunken bezels mean a selection,
   active color well, or chooser whose palette is already floating.
 - Use engraved text for chrome labels and status, ordinary text for editable

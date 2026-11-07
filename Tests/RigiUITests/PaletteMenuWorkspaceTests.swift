@@ -114,6 +114,19 @@ final class PaletteMenuWorkspaceTests: XCTestCase {
     XCTAssertTrue(menu.items.contains { $0.title == "Close Alpha" })
   }
 
+  func testOwnPaletteMenusFollowTheAppliedChromeScheme() throws {
+    let previous = ClassicChrome.scheme
+    defer { ClassicChrome.apply(scheme: previous) }
+    let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
+    let palette = makePalette("scheme", title: "Scheme", dock: dock, menu: ["New"])
+    palette.showPanel()
+    let group = try XCTUnwrap(dock.groupID(of: palette))
+    ClassicChrome.apply(scheme: .dark)
+    let context = try XCTUnwrap(dock.menu(forGroup: group, tab: nil))
+    XCTAssertEqual(context.appearance?.name, .darkAqua)
+    XCTAssertEqual(context.items.first?.submenu?.appearance?.name, .darkAqua)
+  }
+
   func testTheTriangleFollowsWhetherTheContentHasAMenuForItsTarget() throws {
     let dock = PaletteDock(store: .memory(), legacyFrame: { _ in nil })
     var target: NSObject? = NSObject()

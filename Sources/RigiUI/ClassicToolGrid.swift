@@ -324,6 +324,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
     /// tracks the still-held button so hold-and-slide and drag both work.
     private func openFlyout(for slot: Int) {
         let menu = NSMenu()
+        menu.appearance = ClassicChrome.schemeAppearance
         menu.autoenablesItems = false
         for (index, tool) in slots[slot].tools.enumerated() {
             let item = NSMenuItem(title: tool.name,

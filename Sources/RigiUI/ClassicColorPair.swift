@@ -239,20 +239,21 @@ public final class ClassicColorPair: NSView, NSViewToolTipOwner, ClassicChromeDr
         drawResetPair(in: layout.reset, pressed: pressedPart == .reset, active: active)
     }
 
-    /// A square of color in a dark hairline frame with a white inner rule,
+    /// A square of color in a dark hairline frame with a light inner rule,
     /// so black and white swatches both read against the panel.
     private func drawSwatch(_ color: NSColor, in rect: CGRect, pressed: Bool, active: Bool) {
         ClassicChrome.bezelBorder(active).setFill()
         rect.fill()
-        NSColor.white.setFill()
+        ClassicChrome.swatchInnerRule().setFill()
         rect.insetBy(dx: 1, dy: 1).fill()
 
         let fill = rect.insetBy(dx: 2, dy: 2)
-        (isEnabled ? color : color.blended(withFraction: 0.5, of: .white) ?? color).setFill()
+        (isEnabled ? color : color.blended(withFraction: 0.5,
+                                           of: ClassicChrome.disabledSwatchBlend()) ?? color).setFill()
         fill.fill()
 
         if pressed {
-            NSColor(calibratedWhite: 0, alpha: 0.25).setFill()
+            ClassicChrome.pressedOverlay().setFill()
             fill.fill()
         }
     }
@@ -260,7 +261,7 @@ public final class ClassicColorPair: NSView, NSViewToolTipOwner, ClassicChromeDr
     /// A small bent double arrow from the foreground's corner to the
     /// background's.
     private func drawSwapArrow(in rect: CGRect, pressed: Bool, active: Bool) {
-        let color = pressed ? NSColor.black : ClassicChrome.glyphColor(active)
+        let color = pressed ? ClassicChrome.pressedGlyph() : ClassicChrome.glyphColor(active)
         color.set()
 
         let left = CGPoint(x: rect.minX + 3, y: rect.midY + 1)
@@ -299,7 +300,7 @@ public final class ClassicColorPair: NSView, NSViewToolTipOwner, ClassicChromeDr
             square.insetBy(dx: 1, dy: 1).fill()
         }
         if pressed {
-            NSColor(calibratedWhite: 0, alpha: 0.25).setFill()
+            ClassicChrome.pressedOverlay().setFill()
             back.union(front).fill()
         }
     }

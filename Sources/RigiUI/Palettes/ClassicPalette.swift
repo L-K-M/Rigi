@@ -47,7 +47,7 @@ public class ClassicPaletteWindow: NSPanel {
         isMovableByWindowBackground = false
         collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         animationBehavior = .utilityWindow
-        appearance = NSAppearance(named: .aqua)
+        appearance = ClassicChrome.schemeAppearance
     }
 
     @available(*, unavailable)
@@ -288,10 +288,10 @@ public final class PaletteChromeView: NSView, ClassicChromeDrawing {
         NSGraphicsContext.saveGraphicsState()
         silhouette.addClip()
 
-        ClassicChrome.gradient(top: 0.97, bottom: 0.86).draw(in: bounds, angle: 90)
+        ClassicChrome.panelGradient(active: true).draw(in: bounds, angle: 90)
 
         let bar = titleBarRect
-        ClassicChrome.gradient(top: 0.965, bottom: 0.80).draw(in: bar, angle: 90)
+        ClassicChrome.paletteTitleBarGradient().draw(in: bar, angle: 90)
         ClassicChrome.barTopHighlight.setFill()
         NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
         ClassicChrome.barBottomBorder(true).setFill()
@@ -299,7 +299,7 @@ public final class PaletteChromeView: NSView, ClassicChromeDrawing {
 
         NSGraphicsContext.restoreGraphicsState()
 
-        NSColor(calibratedWhite: 0.45, alpha: 1).setStroke()
+        ClassicChrome.windowBorder().setStroke()
         let border = ClassicChrome.windowSilhouette(in: bounds.insetBy(dx: 0.5, dy: 0.5),
                                                     top: Self.topCornerRadius)
         border.lineWidth = 1
@@ -388,15 +388,15 @@ public final class PaletteChromeView: NSView, ClassicChromeDrawing {
             if selected {
                 // The picked tab opens into the body: body-tone fill, side
                 // hairlines, and no bottom border under it.
-                ClassicChrome.gradient(top: 0.985, bottom: 0.97).draw(in: rect, angle: 90)
-                NSColor(calibratedWhite: 0.55, alpha: 1).setFill()
+                ClassicChrome.selectedTabGradient().draw(in: rect, angle: 90)
+                ClassicChrome.tabSideHairline().setFill()
                 NSRect(x: rect.minX, y: rect.minY, width: 1, height: rect.height).fill()
                 NSRect(x: rect.maxX - 1, y: rect.minY, width: 1, height: rect.height).fill()
-                ClassicChrome.gradient(top: 0.985, bottom: 0.97).draw(
+                ClassicChrome.selectedTabGradient().draw(
                     in: NSRect(x: rect.minX + 1, y: bar.minY, width: rect.width - 2, height: 1),
                     angle: 90)
             } else if index + 1 < rects.count, index + 1 != selectedTabIndex {
-                NSColor(calibratedWhite: 0.62, alpha: 1).setFill()
+                ClassicChrome.tabSeparator().setFill()
                 NSRect(x: rect.maxX - 1, y: rect.minY + 3, width: 1, height: rect.height - 6).fill()
             }
 
