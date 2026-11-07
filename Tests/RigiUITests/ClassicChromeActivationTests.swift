@@ -34,8 +34,8 @@ final class ClassicChromeActivationTests: XCTestCase {
         }
     }
 
-    func testNewToolControlsParticipateInActivationRedraw() {
-        for view: NSView in [ClassicToolGrid(), ClassicColorPair()] {
+    func testActivationDependentControlsParticipateInRedraw() {
+        for view: NSView in [ClassicToolGrid(), ClassicColorPair(), ClassicPopUpButton()] {
             XCTAssertTrue(view is any ClassicChromeDrawing,
                           "\(type(of: view)) must update its active colors")
         }

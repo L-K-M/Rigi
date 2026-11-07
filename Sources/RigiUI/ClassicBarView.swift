@@ -50,7 +50,7 @@ open class ClassicBarView: NSView, ClassicChromeDrawing {
 
 /// Native menu/keyboard/accessibility behavior with Rigi's bezel. Use this when
 /// an inspector needs AppKit's represented objects, tags, or mixed menu states.
-public final class ClassicPopUpButton: NSPopUpButton {
+public final class ClassicPopUpButton: NSPopUpButton, ClassicChromeDrawing {
     public override var intrinsicContentSize: NSSize {
         let size = super.intrinsicContentSize
         return NSSize(width: size.width, height: ClassicChrome.controlHeight)
