@@ -126,12 +126,12 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         }
         finished = true
         // Did this close hand the session to the palette (tear-off), or was it a
-        // plain click-away? Check the documented close reason, with the panel's
-        // actual visibility as a fallback signal.
+        // plain click-away? The close reason is authoritative, but the panel
+        // visibility fallback only counts when a detachment was prepared.
         let reason = notification.userInfo?[NSPopover.closeReasonUserInfoKey]
-        let detached = (reason as? NSPopover.CloseReason) == .detachToWindow
+        let reasonIsDetach = (reason as? NSPopover.CloseReason) == .detachToWindow
             || (reason as? String) == NSPopover.CloseReason.detachToWindow.rawValue
-            || palette?.isShowingPanel == true
+        let detached = detachRequested && (reasonIsDetach || palette?.isShowingPanel == true)
         if detached {
             onDetach?()           // bank the attached browsing as one undo step
             palette?.didDetach()
