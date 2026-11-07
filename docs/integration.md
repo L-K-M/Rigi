@@ -48,7 +48,8 @@ func applyAppearancePreference() {
 The call repaints every `ClassicChromeDrawing` view — Rigi's own chrome and
 app-owned conformers — and gives palette windows, popovers, menus, and chrome
 containers the matching `NSAppearance`, so native controls inside them follow.
-Document views are untouched. Rigi refreshes its own cached colors internally.
+Chrome built after the call adopts the matching appearance on its window's
+next activation. Document views are untouched. Rigi refreshes its own cached colors internally.
 App-owned chrome should resolve semantic colors in `draw`. Applications using
 baked attributed strings or tinted images must refresh those values when they
 apply a scheme or receive the workspace accessibility notification.

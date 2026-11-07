@@ -58,7 +58,9 @@ extension ClassicChrome {
     /// Applies `scheme` to all Rigi chrome: existing windows, palettes, and
     /// popovers adopt the scheme's appearance, `ClassicChromeDrawing` views —
     /// including app-owned chrome — repaint in the new colors, and native
-    /// controls inside chrome follow. Document content is left alone.
+    /// controls inside chrome follow. Chrome built after this call picks the
+    /// scheme's appearance up on its window's next activation. Document
+    /// content is left alone.
     ///
     /// Call on the main thread when the application's preference changes.
     /// Rigi does not persist the choice.
