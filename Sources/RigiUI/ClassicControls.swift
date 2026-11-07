@@ -168,7 +168,19 @@ enum ClassicChromeActivation {
         // Only chrome-drawing views repaint; walking the tree is cheap, but
         // setting needsDisplay on an app document view would force its full
         // redraw on every window activation change.
-        if view is any ClassicChromeDrawing { view.needsDisplay = true }
+        if view is any ClassicChromeDrawing {
+            // Chrome built after `ClassicChrome.apply(scheme:)` never passed
+            // through ClassicChromeRefresh, so it still carries the window's
+            // document appearance; adopt the scheme's so native controls
+            // inside chrome resolve the right colors. Comparing names keeps
+            // steady-state activations from re-assigning appearance — and
+            // the effectiveAppearance cascade it triggers — every time.
+            let schemeAppearance = ClassicChrome.schemeAppearance
+            if view.appearance?.name != schemeAppearance?.name {
+                view.appearance = schemeAppearance
+            }
+            view.needsDisplay = true
+        }
         view.subviews.forEach { invalidate($0) }
     }
 }

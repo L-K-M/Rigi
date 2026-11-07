@@ -356,6 +356,61 @@ final class ClassicChromeSchemeTests: XCTestCase {
                        "switching back restores the aqua chrome appearance")
     }
 
+    /// `apply` walks the windows that exist at call time, so chrome built
+    /// afterwards — a `ClassicWindow` shown for the first time — still
+    /// inherits the window's document appearance. Its first activation must
+    /// adopt the scheme's appearance on chrome, or native controls inside
+    /// dark chrome keep resolving aqua.
+    func testChromeCreatedAfterApplyAdoptsTheSchemeAppearanceOnActivation() throws {
+        ClassicChrome.apply(scheme: .dark)
+
+        let window = ClassicWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        // Document windows keep aqua (the gallery pins it); chrome must
+        // still follow the scheme.
+        window.appearance = NSAppearance(named: .aqua)
+
+        let panel = ClassicPanelView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        let field = NSTextField(string: "12")
+        field.frame = NSRect(x: 20, y: 20, width: 80, height: 22)
+        let popUp = NSPopUpButton(frame: NSRect(x: 20, y: 60, width: 120, height: 26),
+                                  pullsDown: false)
+        popUp.addItems(withTitles: ["One", "Two"])
+        panel.addSubview(field)
+        panel.addSubview(popUp)
+        let document = SchemeDocumentProbe(frame: NSRect(x: 0, y: 200, width: 400, height: 100))
+        let chrome = SchemeChromeProbe(frame: NSRect(x: 20, y: 110, width: 80, height: 24))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        root.addSubview(panel)
+        root.addSubview(document)
+        root.addSubview(chrome)
+        window.contentView = root
+        window.orderFrontRegardless()
+        settle()
+
+        document.invalidations = 0
+        chrome.invalidations = 0
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: window)
+        settle()
+
+        XCTAssertEqual(panel.effectiveAppearance.name, .darkAqua,
+                       "chrome adopts the scheme appearance on activation")
+        XCTAssertEqual(field.effectiveAppearance.name, .darkAqua,
+                       "a native field inside chrome follows the scheme")
+        XCTAssertEqual(popUp.effectiveAppearance.name, .darkAqua,
+                       "a native pop-up inside chrome follows the scheme")
+        XCTAssertEqual(chrome.effectiveAppearance.name, .darkAqua)
+        XCTAssertGreaterThan(chrome.invalidations, 0,
+                             "activation still repaints chrome")
+        XCTAssertEqual(document.invalidations, 0,
+                       "document views must not repaint")
+        XCTAssertEqual(document.effectiveAppearance.name, .aqua,
+                       "document content keeps the window appearance")
+    }
+
     /// The floating palette panel is a ClassicPaletteWindow: it adopts the
     /// scheme appearance on creation and follows a later scheme change.
     func testPalettePanelFollowsTheScheme() throws {
