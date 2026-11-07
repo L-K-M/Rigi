@@ -116,7 +116,11 @@ picker.present(
 
 `MyEditor` and the preview methods above are application examples. They are not
 Rigi types. Make `finishPreview` idempotent: successful tear-off banks the
-transaction before the ordinary finish callback runs.
+transaction before the ordinary finish callback runs. The picker remembers
+and restores the invoking window's editor, not its chooser. It leaves focus
+alone if the user has clicked into a different editor, and never activates a
+window. An explicit focus choice in `onFinish` takes precedence; applications
+can use that callback when the document target changes during a preview.
 
 `TearOffPalette` is the adapter seam for an existing app-owned palette. It
 prepares a window, reports actual visibility, and receives successful-detach

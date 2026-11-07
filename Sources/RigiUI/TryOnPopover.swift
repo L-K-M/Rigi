@@ -36,6 +36,9 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     private let list: PickerListView
     private var popover: NSPopover?
     private var palette: TearOffPalette?
+    private weak var anchor: NSView?
+    private weak var invokingWindow: NSWindow?
+    private weak var invokingResponder: NSResponder?
     private var onPreview: ((PickerItem) -> Void)?  // live, single-undo session
     private var onDetach: (() -> Void)?             // bank the session before the palette takes over
     private var onFinish: ((Outcome) -> Void)?     // end the session + refocus
@@ -65,6 +68,17 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
                  onDetach: @escaping () -> Void,
                   onFinish: @escaping (Outcome) -> Void) {
         guard popover == nil else { return }
+        self.anchor = anchor
+        invokingWindow = anchor.window
+        let responder = anchor.window?.firstResponder
+        // AppKit lends one field editor to text controls. Restore through its
+        // owner, since the field editor can be detached before we dismiss.
+        if let editor = responder as? NSTextView, editor.isFieldEditor,
+           let owner = editor.delegate as? NSView {
+            invokingResponder = owner
+        } else {
+            invokingResponder = responder
+        }
         self.palette = palette
         self.onPreview = onPreview
         self.onDetach = onDetach
@@ -102,8 +116,23 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     private func finish(_ outcome: Outcome) {
         guard !finished else { return }
         finished = true
+        restoreFocus()
         onFinish?(outcome)
         popover?.close()
+    }
+
+    /// Restore the editor, not its chooser. A click-away may already have
+    /// selected another editor; never undo that choice or activate a window.
+    private func restoreFocus() {
+        guard let window = invokingWindow, let responder = invokingResponder,
+              anchor?.window === window else { return }
+        if let view = responder as? NSView, view.window !== window { return }
+        if let current = window.firstResponder,
+           current !== responder && current !== anchor && current !== window {
+            guard let editor = current as? NSTextView, editor.isFieldEditor,
+                  editor.delegate as? NSView === responder else { return }
+        }
+        window.makeFirstResponder(responder)
     }
 
     // MARK: - Tear-off → hand the session to the global palette
@@ -140,6 +169,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         }
         // Click-away keeps the try-on; after a tear-off this is a no-op end plus
         // the control re-sync and page refocus.
+        if !detached { restoreFocus() }
         onFinish?(.commit)
     }
 
@@ -154,6 +184,9 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         detachRequested = false
         popover = nil
         palette = nil
+        anchor = nil
+        invokingWindow = nil
+        invokingResponder = nil
         onPreview = nil
         onDetach = nil
         onFinish = nil
