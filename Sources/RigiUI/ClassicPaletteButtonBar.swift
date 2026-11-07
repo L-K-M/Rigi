@@ -8,7 +8,7 @@ import AppKit
 /// Each item is a real button: it takes the keyboard focus, reads its
 /// title to VoiceOver and shows it as the tool tip. The application enables
 /// and disables items as its selection changes.
-public final class ClassicPaletteButtonBar: ClassicBarView {
+public final class ClassicPaletteButtonBar: ClassicBarView, ClassicChromeSchemeAware {
 
     public struct Item {
         public let id: String
@@ -31,6 +31,7 @@ public final class ClassicPaletteButtonBar: ClassicBarView {
 
     private var buttons: [String: ClassicToolbarButton] = [:]
     private var actions: [ButtonAction] = []
+    private var itemImages: [String: NSImage] = [:]
 
     public init(items: [Item], trailingItems: [Item] = []) {
         let ids = (items + trailingItems).map(\.id)
@@ -86,7 +87,16 @@ public final class ClassicPaletteButtonBar: ClassicBarView {
             button.heightAnchor.constraint(equalToConstant: Self.buttonSize.height),
         ])
         buttons[item.id] = button
+        itemImages[item.id] = item.image
         return button
+    }
+
+    /// The tint is baked into each button's image, so a scheme change
+    /// re-tints from the original template glyphs.
+    func chromeSchemeDidChange() {
+        for (id, image) in itemImages {
+            buttons[id]?.image = Self.tinted(image)
+        }
     }
 
     /// A template icon in the chrome's glyph gray: the bezel button draws

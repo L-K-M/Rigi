@@ -51,6 +51,20 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         list.onPick = { [weak self] item in self?.onPreview?(item) }
         list.onCommit = { [weak self] in self?.finish(.commit) }
         list.onCancel = { [weak self] in self?.finish(.cancel) }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(chromeSchemeDidChange(_:)),
+            name: .classicChromeSchemeDidChange, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    /// A scheme change reaches an open popover through its appearance and a
+    /// repaint of the content tree.
+    @objc private func chromeSchemeDidChange(_ note: Notification) {
+        popover?.appearance = ClassicChrome.schemeAppearance
+        ClassicChromeRefresh.refresh(popover?.contentViewController?.view)
     }
 
     /// True while the popover is on screen; the toolbar guards on this so it
@@ -91,7 +105,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
 
         let pop = NSPopover()
         pop.behavior = .transient    // .transient + popoverShouldDetach → draggable tear-off
-        pop.appearance = NSAppearance(named: .aqua)
+        pop.appearance = ClassicChrome.schemeAppearance
         let controller = NSViewController()
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 400))
         list.translatesAutoresizingMaskIntoConstraints = false

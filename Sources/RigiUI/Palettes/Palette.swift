@@ -75,6 +75,22 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
     super.init()
 
     self.dock.register(self)
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(chromeSchemeDidChange(_:)),
+      name: .classicChromeSchemeDidChange, object: nil
+    )
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  /// A scheme change reaches an open popover through its appearance and a
+  /// repaint of the content tree; the panel form is covered by the window
+  /// walk in `ClassicChromeRefresh`.
+  @objc private func chromeSchemeDidChange(_ note: Notification) {
+    popover?.appearance = ClassicChrome.schemeAppearance
+    ClassicChromeRefresh.refresh(popover?.contentViewController?.view)
   }
 
   /// Shows the attached form, or raises the existing floating form.
@@ -100,6 +116,7 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
     let popover = NSPopover()
     popover.behavior = .transient
     popover.animates = true
+    popover.appearance = ClassicChrome.schemeAppearance
     // Attaching a content view controller re-derives the popover's size from
     // it, so the requested size is applied afterwards and wins either way.
     popover.contentViewController = content.viewController

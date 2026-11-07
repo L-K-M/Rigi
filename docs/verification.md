@@ -19,9 +19,15 @@ docking, collapse, hiding, layout persistence and validation, palette menus,
 workspaces and their validation, tool grid geometry, selection and
 accessibility, color pair hit areas and reports, value slider clamping,
 rounding and drag phases, palette button bars, the status bar's editable
-zoom, accessories and progress, picker selection, and preview finish
-callbacks. The gallery smoke check exercises the public API from another target.
-CI retains a gallery screenshot for visual inspection.
+zoom, accessories and progress, picker selection, preview finish
+callbacks, and chrome schemes: the default stays `classicLight`, each
+opt-in scheme repaints app chrome, palette windows and the try-on popover
+adopt the matching appearance, neutral gray keeps the aqua chrome
+appearance, Increase Contrast strengthens text and outlines in every
+scheme, and the workspace accessibility post repaints chrome without
+touching document views. The gallery smoke check exercises the public API from another
+target, including the Appearance menu's live scheme switch. CI retains a
+gallery screenshot for visual inspection.
 
 App CI must also build and test Lucerne and Sion against the pinned revision.
 Passing Rigi tests alone does not prove an application's editing adapters.
@@ -46,6 +52,9 @@ In the gallery, then both applications:
    restore all palettes, and relaunch. Check that the arrangement returns.
 8. Inspect normal, pressed, disabled, selected, inactive, and mixed-value states.
    Check at 1x/2x scale and with macOS Dark Mode enabled (Rigi stays Aqua).
+   Switch the Appearance menu through Classic Light, Neutral Gray, and Dark:
+   chrome repaints live, palettes and popovers follow, and the document
+   content is unchanged. Repeat with Increase Contrast enabled.
 9. Use VoiceOver and Full Keyboard Access. Check names, states, focus order,
    native toolbar customization, and keyboard equivalents.
 

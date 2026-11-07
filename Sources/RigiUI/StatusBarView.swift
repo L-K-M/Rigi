@@ -11,7 +11,7 @@ import AppKit
 // Between the message and the zoom cluster sit, when the application asks for
 // them, a progress bar with a cancel button and accessory views such as an
 // information pop-up.
-public final class StatusBarView: NSView, NSTextFieldDelegate, ClassicChromeDrawing {
+public final class StatusBarView: NSView, NSTextFieldDelegate, ClassicChromeDrawing, ClassicChromeSchemeAware {
 
     private let label = NSTextField(labelWithString: "")
     private let trailingRow = NSStackView()
@@ -265,6 +265,12 @@ public final class StatusBarView: NSView, NSTextFieldDelegate, ClassicChromeDraw
             message, size: 11, active: ClassicChrome.active(for: self))
     }
 
+    /// The engraved label keeps its color in attributed-string state, so a
+    /// scheme change re-sets it like an activation change does.
+    func chromeSchemeDidChange() {
+        refreshLabel()
+    }
+
     @objc private func zoomClicked() {
         switch zoomControl.selectedSegment {
         case 0: onZoomOut?()
@@ -277,8 +283,7 @@ public final class StatusBarView: NSView, NSTextFieldDelegate, ClassicChromeDraw
 
     public override func draw(_ dirtyRect: NSRect) {
         let active = ClassicChrome.active(for: self)
-        ClassicChrome.gradient(top: active ? 0.94 : 0.965,
-                               bottom: active ? 0.78 : 0.885).draw(in: bounds, angle: 90)
+        ClassicChrome.statusBarGradient(active: active).draw(in: bounds, angle: 90)
         ClassicChrome.barBottomBorder(active).setFill()  // top border, mirroring the format bar's bottom
         NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
         ClassicChrome.barTopHighlight.setFill()          // etched highlight just under it

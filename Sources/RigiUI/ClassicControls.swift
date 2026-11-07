@@ -3,7 +3,9 @@ import AppKit
 // Hand-drawn "classic" chrome for the format bar, ruler, status bar, and welcome
 // screen, in the spirit of the iWork '09 era: gradient bezels, etched group
 // separators, and glyphs drawn with paths instead of symbol images. Everything is
-// drawn at 1 pt hairline scale and pinned to the light appearance by the windows.
+// drawn at 1 pt hairline scale; `ClassicChrome.apply(scheme:)` selects the chrome
+// palette, and colors resolve through `ClassicChrome` at draw time so a scheme
+// change repaints chrome without touching document content.
 //
 // Like the classic Mac chrome it emulates, every surface mutes when its window is
 // not active: colors are resolved through functions taking an `active` flag, and
@@ -11,10 +13,27 @@ import AppKit
 // state changes.
 public enum ClassicChrome {
 
+    /// Storage for `scheme`; the computed property below installs the
+    /// accessibility-display observer on first read.
+    private static var appliedScheme: ClassicChromeScheme = .classicLight
+
+    /// The applied chrome scheme; `apply(scheme:)` is the only setter and
+    /// repaints existing chrome. Read on the main thread, typically at draw
+    /// time through the accessors below. The first read installs the
+    /// Increase Contrast observer, so chrome in applications that never
+    /// call `apply(scheme:)` still follows the accessibility setting.
+    public internal(set) static var scheme: ClassicChromeScheme {
+        get {
+            ClassicChromeRefresh.install()
+            return appliedScheme
+        }
+        set { appliedScheme = newValue }
+    }
+
     public static let controlHeight: CGFloat = 20
     public static let cornerRadius: CGFloat = 3.5
 
-    public static let barTopHighlight = NSColor(calibratedWhite: 1.0, alpha: 0.6)
+    public static var barTopHighlight: NSColor { scheme.palette.barTopHighlight() }
 
     /// Whether a view's chrome should draw at full strength: its window is the
     /// main or key window (popovers count as key while in use).
@@ -28,39 +47,28 @@ public enum ClassicChrome {
     }
 
     public static func barBottomBorder(_ active: Bool) -> NSColor {
-        NSColor(calibratedWhite: active ? 0.45 : 0.60, alpha: 1)
+        scheme.palette.barBottomBorder(active)
     }
     public static func bezelBorder(_ active: Bool) -> NSColor {
-        NSColor(calibratedWhite: active ? 0.47 : 0.65, alpha: 1)
+        scheme.palette.bezelBorder(active)
     }
     public static func glyphColor(_ active: Bool) -> NSColor {
-        NSColor(calibratedWhite: active ? 0.18 : 0.45, alpha: 1)
+        scheme.palette.glyphColor(active)
     }
     public static func titleColor(_ active: Bool) -> NSColor {
-        NSColor(calibratedWhite: active ? 0.13 : 0.45, alpha: 1)
+        scheme.palette.titleColor(active)
     }
     public static func arrowColor(_ active: Bool) -> NSColor {
-        NSColor(calibratedWhite: active ? 0.25 : 0.50, alpha: 1)
+        scheme.palette.arrowColor(active)
     }
     public static func segmentSeparator(_ active: Bool) -> NSColor {
-        NSColor(calibratedWhite: active ? 0.55 : 0.70, alpha: 1)
+        scheme.palette.segmentSeparator(active)
     }
 
     public enum BezelState { case normal, on, pressed }
 
     public static func bezelGradient(_ state: BezelState, active: Bool) -> NSGradient {
-        guard active else {
-            switch state {
-            case .normal: return gradient(top: 0.99, bottom: 0.94)
-            case .on: return gradient(top: 0.84, bottom: 0.90)
-            case .pressed: return gradient(top: 0.60, bottom: 0.74)
-            }
-        }
-        switch state {
-        case .normal: return gradient(top: 1.00, bottom: 0.86)
-        case .on: return gradient(top: 0.68, bottom: 0.82)
-        case .pressed: return gradient(top: 0.60, bottom: 0.74)
-        }
+        scheme.palette.bezelGradient(state, active)
     }
 
     public static func gradient(top: CGFloat, bottom: CGFloat) -> NSGradient {
@@ -77,8 +85,8 @@ public enum ClassicChrome {
     /// bezels, a dark seam on sunken (on/pressed) ones.
     public static func drawInnerHint(_ state: BezelState, in rect: NSRect, active: Bool) {
         switch state {
-        case .normal: NSColor(calibratedWhite: 1.0, alpha: active ? 0.55 : 0.35).setFill()
-        case .on, .pressed: NSColor(calibratedWhite: 0.25, alpha: active ? 0.22 : 0.12).setFill()
+        case .normal: innerHintHighlight(active).setFill()
+        case .on, .pressed: innerHintShadow(active).setFill()
         }
         NSRect(x: rect.minX, y: rect.maxY - 2, width: rect.width, height: 1).fill()
     }
@@ -467,6 +475,7 @@ public class ClassicPopUp: NSControl, ClassicChromeDrawing {
     /// Presents the control's chooser; the default pops the item menu over the
     /// control like NSPopUpButton.
     func presentChoices() {
+        popMenu.appearance = ClassicChrome.schemeAppearance
         popMenu.minimumWidth = bounds.width
         let positioning = popMenu.items.indices.contains(indexOfSelectedItem)
             ? popMenu.items[indexOfSelectedItem] : nil
@@ -632,6 +641,7 @@ public final class ClassicSizeField: NSView, ClassicChromeDrawing {
     public override func mouseDown(with event: NSEvent) {
         guard isEnabled else { return }
         let menu = NSMenu()
+        menu.appearance = ClassicChrome.schemeAppearance
         menu.autoenablesItems = false
         for preset in presets {
             let item = NSMenuItem(title: preset, action: #selector(presetChosen(_:)), keyEquivalent: "")
@@ -653,12 +663,12 @@ public final class ClassicSizeField: NSView, ClassicChromeDrawing {
         let outline = ClassicChrome.bezelOutline(in: bounds, radius: 3)
         NSGraphicsContext.saveGraphicsState()
         outline.addClip()
-        NSColor.white.setFill()
+        ClassicChrome.wellFill().setFill()
         bounds.fill()
         let arrowZone = NSRect(x: bounds.width - arrowZoneWidth, y: 0,
                                width: arrowZoneWidth, height: bounds.height)
         ClassicChrome.bezelGradient(.normal, active: active).draw(in: arrowZone, angle: 90)
-        NSColor(calibratedWhite: 0, alpha: 0.07).setFill()     // inset shadow on the text area
+        ClassicChrome.fieldInsetShadow().setFill()             // inset shadow on the text area
         NSRect(x: 0, y: bounds.height - 2, width: bounds.width - arrowZoneWidth, height: 1).fill()
         ClassicChrome.segmentSeparator(active).withAlphaComponent(0.7).setFill()
         // Integral x for a crisp 1 px fill: last column just left of the arrow well.
@@ -723,7 +733,7 @@ public final class ClassicColorWell: NSColorWell, ClassicChromeDrawing {
         let swatch = bounds.insetBy(dx: 5, dy: 5)
         color.setFill()
         swatch.insetBy(dx: 1, dy: 1).fill()
-        NSColor(calibratedWhite: windowActive ? 0.35 : 0.55, alpha: 1).setStroke()
+        ClassicChrome.swatchFrame(windowActive).setStroke()
         let frame = NSBezierPath(rect: swatch.insetBy(dx: 0.5, dy: 0.5))
         frame.lineWidth = 1
         frame.stroke()
@@ -739,9 +749,9 @@ public final class EtchedSeparatorView: NSView, ClassicChromeDrawing {
 
     public override func draw(_ dirtyRect: NSRect) {
         let active = ClassicChrome.active(for: self)
-        NSColor(calibratedWhite: active ? 0.58 : 0.72, alpha: 1).setFill()
+        ClassicChrome.etchedSeparatorLeading(active).setFill()
         NSRect(x: 0, y: 0, width: 1, height: bounds.height).fill()
-        NSColor(calibratedWhite: 1.0, alpha: 0.8).setFill()
+        ClassicChrome.etchedSeparatorTrailing().setFill()
         NSRect(x: 1, y: 0, width: 1, height: bounds.height).fill()
     }
 }
@@ -837,7 +847,7 @@ public enum ClassicText {
                                 weight: NSFont.Weight = .regular, italic: Bool = false,
                                 gray: CGFloat = 0.22, active: Bool = true) -> NSAttributedString {
         let shadow = NSShadow()
-        shadow.shadowColor = NSColor(calibratedWhite: 1.0, alpha: active ? 0.65 : 0.4)
+        shadow.shadowColor = ClassicChrome.engravedShadow(active)
         shadow.shadowOffset = NSSize(width: 0, height: -1)
         shadow.shadowBlurRadius = 0
         let paragraph = NSMutableParagraphStyle()
@@ -846,7 +856,7 @@ public enum ClassicText {
         if italic { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
         return NSAttributedString(string: string, attributes: [
             .font: font,
-            .foregroundColor: NSColor(calibratedWhite: active ? gray : min(gray + 0.26, 0.62), alpha: 1),
+            .foregroundColor: ClassicChrome.scheme.palette.engravedText(gray, active),
             .shadow: shadow,
             .paragraphStyle: paragraph
         ])
@@ -870,9 +880,9 @@ public final class ClassicRuleView: NSView, ClassicChromeDrawing {
     public override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 2) }
 
     public override func draw(_ dirtyRect: NSRect) {
-        NSColor(calibratedWhite: 0.68, alpha: 1).setFill()
+        ClassicChrome.ruleDark().setFill()
         NSRect(x: 0, y: 1, width: bounds.width, height: 1).fill()
-        NSColor(calibratedWhite: 1.0, alpha: 0.85).setFill()
+        ClassicChrome.ruleLight().setFill()
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
     }
 }
@@ -885,8 +895,7 @@ public final class ClassicPanelView: NSView, ClassicChromeDrawing {
 
     public override func draw(_ dirtyRect: NSRect) {
         let active = ClassicChrome.active(for: self)
-        ClassicChrome.gradient(top: active ? 0.97 : 0.975,
-                               bottom: active ? 0.86 : 0.92).draw(in: bounds, angle: 90)
+        ClassicChrome.panelGradient(active: active).draw(in: bounds, angle: 90)
         ClassicChrome.barTopHighlight.setFill()
         NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
     }
@@ -909,11 +918,11 @@ public final class ClassicInsetBox: NSView, ClassicChromeDrawing {
 
     public override func draw(_ dirtyRect: NSRect) {
         let active = ClassicChrome.active(for: self)
-        NSColor.white.setFill()
+        ClassicChrome.wellFill().setFill()
         bounds.fill()
-        NSColor(calibratedWhite: 0, alpha: 0.06).setFill()
+        ClassicChrome.wellInsetShadow().setFill()
         NSRect(x: 1, y: bounds.height - 2, width: bounds.width - 2, height: 1).fill()
-        NSColor(calibratedWhite: active ? 0.55 : 0.68, alpha: 1).setStroke()
+        ClassicChrome.wellBorder(active).setStroke()
         let border = NSBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5))
         border.lineWidth = 1
         border.stroke()

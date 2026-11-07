@@ -31,6 +31,37 @@ final class EditorRuler: NSView, ClassicChromeDrawing {
 }
 ```
 
+## Chrome schemes
+
+`ClassicChromeScheme` names the chrome palettes: `classicLight` is the
+original light chrome and the default, `neutralGray` and `dark` are opt-in.
+The library stores no preference; the application calls the setter on the
+main thread when its own preference changes:
+
+```swift
+// In the application's preference storage.
+func applyAppearancePreference() {
+    ClassicChrome.apply(scheme: storedScheme)
+}
+```
+
+The call repaints every `ClassicChromeDrawing` view — Rigi's own chrome and
+app-owned conformers — and gives palette windows, popovers, menus, and chrome
+containers the matching `NSAppearance`, so native controls inside them follow.
+Document views are untouched. Rigi refreshes its own cached colors internally.
+App-owned chrome should resolve semantic colors in `draw`. Applications using
+baked attributed strings or tinted images must refresh those values when they
+apply a scheme or receive the workspace accessibility notification.
+Increase Contrast
+strengthens text and meaningful outlines in every scheme automatically —
+classicLight's standard colors are unchanged while it is off — and chrome
+repaints on the workspace accessibility notification, so applications that
+never call `apply(scheme:)` still follow the setting.
+
+`ClassicChrome.scheme` reports the applied scheme. `ClassicChrome`'s semantic
+accessors (`wellFill()`, `secondaryText()`, `engravedText`, …) resolve it at
+draw time, so app-owned chrome only needs the conformance above.
+
 ## Register a typed palette
 
 `PaletteCenter` resolves the target each time the front document changes. Each

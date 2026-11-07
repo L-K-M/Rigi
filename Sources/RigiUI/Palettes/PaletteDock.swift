@@ -655,6 +655,7 @@ final class PaletteDock: NSObject {
       return
     }
 
+    menu.appearance = ClassicChrome.schemeAppearance
     let anchor = panel.chrome.menuButtonRect
     menu.popUp(positioning: nil, at: NSPoint(x: anchor.minX, y: anchor.minY), in: panel.chrome)
   }
@@ -663,6 +664,7 @@ final class PaletteDock: NSObject {
     guard let groupPanel = panels[id], !groupPanel.tabs.isEmpty else { return nil }
 
     let menu = NSMenu()
+    menu.appearance = ClassicChrome.schemeAppearance
     let tabs = groupPanel.tabs
     let palette = index.flatMap { tabs.indices.contains($0) ? tabs[$0] : nil }
       ?? (tabs.count == 1 ? tabs[0] : nil)
@@ -673,6 +675,7 @@ final class PaletteDock: NSObject {
       // A copy: the content may hand out one menu it keeps, and a menu can
       // hang under one item only.
       item.submenu = own.copy() as? NSMenu
+      item.submenu?.appearance = ClassicChrome.schemeAppearance
       menu.addItem(item)
       menu.addItem(.separator())
     }

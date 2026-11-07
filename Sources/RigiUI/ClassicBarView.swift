@@ -32,16 +32,14 @@ open class ClassicBarView: NSView, ClassicChromeDrawing {
     open override func draw(_ dirtyRect: NSRect) {
         let active = ClassicChrome.active(for: self)
         if style == .panel {
-            ClassicChrome.gradient(top: active ? 0.97 : 0.975,
-                                   bottom: active ? 0.86 : 0.92).draw(in: bounds, angle: 90)
+            ClassicChrome.panelGradient(active: active).draw(in: bounds, angle: 90)
             return
         }
 
-        ClassicChrome.gradient(top: active ? 0.965 : 0.975,
-                               bottom: active ? 0.795 : 0.90).draw(in: bounds, angle: 90)
+        ClassicChrome.toolbarGradient(active: active).draw(in: bounds, angle: 90)
         ClassicChrome.barTopHighlight.setFill()
         NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
-        NSColor(calibratedWhite: active ? 0.66 : 0.80, alpha: 1).setFill()
+        ClassicChrome.barInnerLine(active).setFill()
         NSRect(x: 0, y: 1, width: bounds.width, height: 1).fill()
         ClassicChrome.barBottomBorder(active).setFill()
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()

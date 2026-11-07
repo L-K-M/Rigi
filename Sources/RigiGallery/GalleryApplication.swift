@@ -13,9 +13,9 @@ enum GalleryApplication {
     static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(GalleryMode.auxiliaryRun ? .accessory : .regular)
-        app.mainMenu = makeMainMenu()
 
         let controller = GalleryController()
+        app.mainMenu = makeMainMenu(controller: controller)
         controller.window.orderFront(nil)
 
         switch GalleryMode.current {
@@ -26,8 +26,10 @@ enum GalleryApplication {
     }
 
     /// Minimal menu bar: Quit, Undo/Redo so ⌘Z reaches the window's undo
-    /// manager through the responder chain, and the palette commands.
-    private static func makeMainMenu() -> NSMenu {
+    /// manager through the responder chain, the palette commands, and the
+    /// chrome scheme picker — the consumer-owned preference the library
+    /// exposes through `ClassicChrome.apply(scheme:)`.
+    private static func makeMainMenu(controller: GalleryController) -> NSMenu {
         let menu = NSMenu()
         let appItem = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")
         let appMenu = NSMenu()
@@ -39,6 +41,17 @@ enum GalleryApplication {
         editMenu.addItem(withTitle: "Undo", action: Selector("undo:"), keyEquivalent: "z")
         editMenu.addItem(withTitle: "Redo", action: Selector("redo:"), keyEquivalent: "Z")
         editItem.submenu = editMenu
+        let appearanceItem = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")
+        let appearanceMenu = NSMenu(title: "Appearance")
+        for scheme in ClassicChromeScheme.allCases {
+            let item = NSMenuItem(title: scheme.displayName,
+                                  action: #selector(GalleryController.appearanceSchemeChosen(_:)),
+                                  keyEquivalent: "")
+            item.target = controller
+            item.representedObject = scheme
+            appearanceMenu.addItem(item)
+        }
+        appearanceItem.submenu = appearanceMenu
         // Window commands travel the responder chain to the gallery
         // controller, the window's delegate.
         let windowItem = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")

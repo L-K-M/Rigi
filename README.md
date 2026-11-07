@@ -58,7 +58,7 @@ presentation before exiting. CI also captures a gallery PNG as an artifact.
 
 | Area | Types |
 |---|---|
-| Appearance and dimensions | `ClassicChrome`, `ClassicText`, `ClassicMetrics` |
+| Appearance and dimensions | `ClassicChrome`, `ClassicChromeScheme`, `ClassicText`, `ClassicMetrics` |
 | Native toolbar/inspector controls | `ClassicToolControl`, `ClassicToolbarButton`, `ClassicPopUpButton`, `ClassicColorWell` |
 | Tool palettes | `ClassicToolGrid`, `ClassicColorPair` |
 | Formatting controls | `ClassicSegmentedControl`, `ClassicPopUp`, `ClassicChooserControl`, `ClassicSizeField`, `ClassicButton` |

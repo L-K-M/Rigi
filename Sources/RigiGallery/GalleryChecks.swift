@@ -190,6 +190,44 @@ enum GallerySmokeTest {
         check(controller.inspectorPalette.isPresented, "hidden palette stays presented")
         center.restoreAll()
         check(!center.isHidingPalettes && shownPanels().count == 1, "palettes restored")
+
+        // Chrome schemes through the public API: a live switch repaints
+        // app-owned chrome, adopts the scheme appearance on chrome views and
+        // palette windows, and reaches the still-open try-on popover.
+        check(ClassicChrome.scheme == .classicLight, "chrome scheme defaults to classic light")
+        let schemeProbe = GalleryChromeProbe(frame: .zero)
+        window.contentView?.addSubview(schemeProbe)
+        schemeProbe.invalidations = 0
+        ClassicChrome.apply(scheme: .dark)
+        settle()
+        check(ClassicChrome.scheme == .dark, "dark scheme applied")
+        check(schemeProbe.invalidations > 0, "scheme change repaints app chrome")
+        check(schemeProbe.effectiveAppearance.name == .darkAqua,
+              "chrome adopts the dark appearance")
+        let paletteWindows = {
+            NSApp.windows.filter { $0 is ClassicPaletteWindow && $0.isVisible }
+        }
+        check(!paletteWindows().isEmpty
+              && paletteWindows().allSatisfy { $0.appearance?.name == .darkAqua },
+              "palette panels adopt the dark appearance")
+        let tryOnList = NSApp.windows.lazy.compactMap { $0.contentView }
+            .compactMap { firstDescendant(of: $0, as: PickerListView.self) }.first
+        check(tryOnList?.effectiveAppearance.name == .darkAqua,
+              "try-on popover follows the scheme")
+
+        ClassicChrome.apply(scheme: .neutralGray)
+        settle()
+        check(schemeProbe.effectiveAppearance.name == .aqua,
+              "neutral gray keeps the aqua chrome appearance")
+        check(paletteWindows().allSatisfy { $0.appearance?.name == .aqua },
+              "palette panels stay aqua under neutral gray")
+
+        ClassicChrome.apply(scheme: .classicLight)
+        settle()
+        check(schemeProbe.effectiveAppearance.name == .aqua,
+              "classic light restores the aqua chrome appearance")
+        schemeProbe.removeFromSuperview()
+
         center.closeAll()
 
         print(failures.isEmpty ? "SMOKE OK" : "SMOKE FAILED \(failures.count)")
