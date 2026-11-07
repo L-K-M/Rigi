@@ -299,6 +299,37 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertTrue(hidden.isVisible)
   }
 
+  func testRestoreAllSavesTheRescuedLayoutForTheNextDock() throws {
+    let store = PaletteLayoutStore.memory()
+    let dock = PaletteDock(store: store, legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
+    let (a, _) = makePalette("a", title: "Alpha", dock: dock)
+    let (b, _) = makePalette("b", title: "Beta", dock: dock)
+    a.showPanel()
+    b.showPanel()
+    let panel = try XCTUnwrap(a.hostingPanel)
+    let group = try XCTUnwrap(dock.groupID(of: a))
+
+    // The panel's display goes away while it hides: the layout still holds
+    // the off-screen place.
+    dock.move(group, to: NSRect(origin: NSPoint(x: -6000, y: -5000), size: panel.frame.size))
+    dock.saveNow()
+    let saved = try XCTUnwrap(store.load())
+
+    dock.hideAll(except: [])
+    dock.restoreAll()
+
+    XCTAssertTrue(panel.isVisible)
+    XCTAssertNotEqual(dock.layout, saved, "restoring should have rescued the panel")
+
+    // A second dock on the same store, made while the first still shows its
+    // palettes, gets the rescued layout immediately rather than at quit.
+    let relaunched = PaletteDock(store: store, legacyFrame: { _ in nil })
+    relaunched.setDefaults([PaletteGroupDefault([kind("a"), kind("b")])])
+    XCTAssertEqual(relaunched.layout, dock.layout)
+    XCTAssertEqual(relaunched.members(of: kind("a")), [kind("a"), kind("b")])
+  }
+
   func testTheLayoutComesBackInANewSession() throws {
     let store = PaletteLayoutStore.memory()
     let frame: NSRect
