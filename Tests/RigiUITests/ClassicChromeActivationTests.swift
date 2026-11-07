@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import RigiUI
+import RigiUI
 
 @MainActor
 final class ClassicChromeActivationTests: XCTestCase {

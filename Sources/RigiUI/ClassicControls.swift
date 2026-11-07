@@ -165,9 +165,11 @@ enum ClassicChromeActivation {
     }
 }
 
-/// Marks RigiUI views that draw through `ClassicChrome`, so activation changes
-/// repaint only them — never the host app's (possibly document-heavy) views.
-protocol ClassicChromeDrawing {}
+/// Opts custom chrome into a `ClassicWindow`'s activation redraw. Conforming
+/// views in its content tree repaint when the window's main/key state changes.
+/// Use this for app-owned rulers or controls drawn with `ClassicChrome`;
+/// document and canvas views should not conform.
+public protocol ClassicChromeDrawing: AnyObject {}
 
 // MARK: - Glyphs
 

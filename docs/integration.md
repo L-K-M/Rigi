@@ -17,6 +17,20 @@ Rigi supplies presentation, controls, and callbacks. The application supplies:
 Use explicit `import RigiUI` in each source that uses the package. A migrating
 UI module can re-export RigiUI to preserve its previous public type names.
 
+## Custom chrome and activation
+
+Rigi redraws only chrome when a `ClassicWindow` changes its main/key state.
+An app-owned ruler or custom control drawn with `ClassicChrome` conforms to
+`ClassicChromeDrawing` to join that redraw. Do not conform document or canvas
+views. The walk covers the window's content tree; native toolbar/titlebar
+accessories remain outside it and may need their own activation observers.
+
+```swift
+final class EditorRuler: NSView, ClassicChromeDrawing {
+    // Draw the ruler using ClassicChrome.active(for: self).
+}
+```
+
 ## Register a typed palette
 
 `PaletteCenter` resolves the target each time the front document changes. Each
