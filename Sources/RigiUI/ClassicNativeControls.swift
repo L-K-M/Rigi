@@ -2,7 +2,7 @@ import AppKit
 
 /// Native segmented-control semantics, including per-segment help, accessibility,
 /// and toolbar customization, with the same bezel as the formatting controls.
-public final class ClassicToolControl: NSSegmentedControl {
+public final class ClassicToolControl: NSSegmentedControl, ClassicChromeDrawing {
     public override var intrinsicContentSize: NSSize {
         NSSize(width: super.intrinsicContentSize.width, height: ClassicChrome.controlHeight)
     }
@@ -50,7 +50,7 @@ public final class ClassicToolControl: NSSegmentedControl {
 
 /// An ordinary AppKit button with a compact classic bezel. Native tracking,
 /// keyboard activation, and accessibility stay owned by NSButton.
-public final class ClassicToolbarButton: NSButton {
+public final class ClassicToolbarButton: NSButton, ClassicChromeDrawing {
     public override var intrinsicContentSize: NSSize {
         let size = super.intrinsicContentSize
         return NSSize(width: max(size.width, ClassicChrome.controlHeight + 8),
