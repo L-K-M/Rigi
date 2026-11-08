@@ -752,7 +752,9 @@ final class PaletteGroupTests: XCTestCase {
 
   func testAskingForMembersPredictsTheJoinWithoutMutatingLayoutOrStore() throws {
     var saved = PaletteLayout.Group(id: "main", kinds: ["a", "b"])
-    saved.frame = CGRect(x: 40, y: 500, width: 220, height: 260)
+    let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+    let savedFrame = CGRect(x: visible.minX + 40, y: visible.maxY - 300, width: 220, height: 260)
+    saved.frame = savedFrame
     saved.selected = "b"
     saved.isCollapsed = true
     let savedLayout = PaletteLayout(groups: [saved])
@@ -773,8 +775,8 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertEqual(dock.layout.groups[0].id, "main")
     XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "b", "c"])
     let placed = try XCTUnwrap(dock.layout.groups[0].frame)
-    XCTAssertEqual(placed.minX, 40, "The group keeps its saved place")
-    XCTAssertEqual(placed.maxY, 500 + 260)
+    XCTAssertEqual(placed.minX, savedFrame.minX, "The group keeps its saved place")
+    XCTAssertEqual(placed.maxY, savedFrame.maxY)
     XCTAssertEqual(dock.layout.groups[0].selected, "b", "The join alone keeps the group's own pick")
     XCTAssertTrue(dock.layout.groups[0].isCollapsed, "The join alone keeps the collapse state")
   }
