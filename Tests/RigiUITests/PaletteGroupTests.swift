@@ -721,12 +721,12 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertEqual(dock.groupID(of: c), "main", "The old group id is kept")
     XCTAssertEqual(dock.layout.groups.count, 1)
     XCTAssertEqual(
-      dock.layout.groups[0].kinds, ["a", "c", "b"],
+      dock.layout.groups[0].kinds, ["a", "b", "c"],
       "Inserted beside the anchor; the old members keep their order")
     XCTAssertEqual(dock.layout.groups[0].frame, frameBefore, "The panel does not move")
     XCTAssertEqual(dock.layout.groups[0].selected, "c", "Showing the new tab brings it forward")
-    XCTAssertEqual(panel.chrome.tabTitles, ["Alpha", "Gamma", "Beta"])
-    XCTAssertEqual(dock.members(of: kind("c")), [kind("a"), kind("c"), kind("b")])
+    XCTAssertEqual(panel.chrome.tabTitles, ["Alpha", "Beta", "Gamma"])
+    XCTAssertEqual(dock.members(of: kind("c")), [kind("a"), kind("b"), kind("c")])
   }
 
   func testExtendingTheDefaultGroupAfterItFormedTabsTheNewKindIntoIt() throws {
@@ -747,7 +747,7 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertIdentical(c.hostingPanel, panel)
     XCTAssertEqual(dock.groupID(of: c), group)
     XCTAssertEqual(dock.layout.groups.count, 1)
-    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "c", "b"])
+    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "b", "c"])
   }
 
   func testAskingForMembersPredictsTheJoinWithoutMutatingLayoutOrStore() throws {
@@ -762,7 +762,7 @@ final class PaletteGroupTests: XCTestCase {
 
     let predicted = dock.members(of: kind("c"))
 
-    XCTAssertEqual(predicted, [kind("a"), kind("c"), kind("b")])
+    XCTAssertEqual(predicted, [kind("a"), kind("b"), kind("c")])
     XCTAssertEqual(dock.layout, savedLayout, "Asking changes nothing")
     XCTAssertEqual(store.load(), savedLayout, "The store is untouched")
 
@@ -771,7 +771,7 @@ final class PaletteGroupTests: XCTestCase {
 
     XCTAssertEqual(dock.members(of: kind("c")), predicted, "The eventual group matches the prediction")
     XCTAssertEqual(dock.layout.groups[0].id, "main")
-    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "c", "b"])
+    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "b", "c"])
     let placed = try XCTUnwrap(dock.layout.groups[0].frame)
     XCTAssertEqual(placed.minX, 40, "The group keeps its saved place")
     XCTAssertEqual(placed.maxY, 500 + 260)
@@ -823,6 +823,28 @@ final class PaletteGroupTests: XCTestCase {
     XCTAssertEqual(dock.members(of: kind("c")), [kind("a"), kind("c"), kind("b")])
     XCTAssertEqual(dock.layout.groups.count, 1)
     XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "c", "b"])
+  }
+
+  func testNewTabsUseTheNearestTemplateCompanionWithinTheChosenGroup() throws {
+    let saved = PaletteLayout.Group(id: "main", kinds: ["a", "b"])
+    let dock = PaletteDock(store: .memory(PaletteLayout(groups: [saved])), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b"), kind("c"), kind("d")])])
+    let (c, _) = makePalette("c", title: "Gamma", dock: dock)
+    let (d, _) = makePalette("d", title: "Delta", dock: dock)
+    d.showPanel()
+    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "b", "d"])
+    c.showPanel()
+    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "b", "c", "d"])
+  }
+
+  func testJoiningKeepsACustomSavedTabOrder() {
+    let saved = PaletteLayout.Group(id: "custom", kinds: ["b", "a"])
+    let dock = PaletteDock(store: .memory(PaletteLayout(groups: [saved])), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b"), kind("c")])])
+    XCTAssertEqual(dock.members(of: kind("c")), [kind("b"), kind("c"), kind("a")])
+    let (c, _) = makePalette("c", title: "Gamma", dock: dock)
+    c.showPanel()
+    XCTAssertEqual(dock.layout.groups[0].kinds, ["b", "c", "a"])
   }
 
   func testANewKindWithItsOwnLegacyFrameOpensOnItsOwnPanel() throws {
@@ -918,18 +940,18 @@ final class PaletteGroupTests: XCTestCase {
 
     // Reopening after a close lands in the same group, without duplicating.
     c.close()
-    XCTAssertEqual(dock.members(of: kind("c")), [kind("a"), kind("c"), kind("b")])
+    XCTAssertEqual(dock.members(of: kind("c")), [kind("a"), kind("b"), kind("c")])
     c.showPanel()
     XCTAssertIdentical(c.hostingPanel, panel)
     XCTAssertEqual(dock.layout.groups.count, 1)
-    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "c", "b"])
+    XCTAssertEqual(dock.layout.groups[0].kinds, ["a", "b", "c"])
 
     // Selecting another tab and bringing the new one forward both work.
     dock.select(b)
     XCTAssertEqual(dock.layout.groups[0].selected, "b")
     c.bringToFront()
     XCTAssertEqual(dock.layout.groups[0].selected, "c")
-    XCTAssertEqual(panel.chrome.selectedTabIndex, 1)
+    XCTAssertEqual(panel.chrome.selectedTabIndex, 2)
 
     // Hide and restore brings the joined panel back.
     dock.hideAll(except: [])

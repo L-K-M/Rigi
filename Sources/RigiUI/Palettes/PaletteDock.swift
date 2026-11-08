@@ -139,13 +139,22 @@ final class PaletteDock: NSObject {
       let anchorIndex = layout.index(ofGroupContaining: anchor),
       !hasLegacyFrame(for: kind)
     {
-      let anchorPosition = layout.groups[anchorIndex].kinds.firstIndex(of: anchor) ?? 0
-      let afterAnchor =
-        (templateKinds.firstIndex(of: kind) ?? 0) > (templateKinds.firstIndex(of: anchor) ?? 0)
-      return .joinGroup(
-        index: anchorIndex,
-        insertion: afterAnchor ? anchorPosition + 1 : anchorPosition
-      )
+      let existing = layout.groups[anchorIndex].kinds
+      let position = templateKinds.firstIndex(of: kind) ?? 0
+      // Choose the group using the first saved companion, then place the
+      // new tab after its nearest preceding companion in that group.
+      // Saved tabs keep their order, including a person's custom order.
+      if let predecessor = templateKinds[..<position].reversed().first(where: { existing.contains($0) }),
+        let index = existing.firstIndex(of: predecessor)
+      {
+        return .joinGroup(index: anchorIndex, insertion: index + 1)
+      }
+      if let successor = templateKinds.dropFirst(position + 1).first(where: { existing.contains($0) }),
+        let index = existing.firstIndex(of: successor)
+      {
+        return .joinGroup(index: anchorIndex, insertion: index)
+      }
+      return .joinGroup(index: anchorIndex, insertion: existing.count)
     }
 
     return .newGroup(kinds: prospectiveKinds(for: kind))
