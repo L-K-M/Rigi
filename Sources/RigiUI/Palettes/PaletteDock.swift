@@ -100,9 +100,18 @@ final class PaletteDock: NSObject {
   /// asking creates nothing.
   func members(of kind: PaletteKind) -> [PaletteKind] {
     let identifier = kind.identifier
-    let kinds = layout.index(ofGroupContaining: identifier).map { layout.groups[$0].kinds }
-      ?? prospectiveKinds(for: identifier)
-    return kinds.map(PaletteKind.init)
+    if let index = layout.index(ofGroupContaining: identifier) {
+      return layout.groups[index].kinds.map(PaletteKind.init)
+    }
+
+    switch prospectiveArrangement(for: identifier) {
+    case .joinGroup(let index, let insertion):
+      var kinds = layout.groups[index].kinds
+      kinds.insert(identifier, at: min(insertion, kinds.count))
+      return kinds.map(PaletteKind.init)
+    case .newGroup(let kinds):
+      return kinds.map(PaletteKind.init)
+    }
   }
 
   /// The kinds a new group for `kind` starts with: its default group, less
@@ -112,6 +121,53 @@ final class PaletteDock: NSObject {
     return (template?.kinds.map(\.identifier) ?? [kind]).filter {
       $0 == kind || layout.index(ofGroupContaining: $0) == nil
     }
+  }
+
+  /// Where a kind with no group yet will live, decided once so that asking
+  /// (``members(of:)``) and creating (``ensureGroupIndex(for:)``) agree:
+  /// either a tab beside its default anchor in the anchor's existing group,
+  /// or a new group seeded from its default template.
+  private func prospectiveArrangement(for kind: String) -> ProspectiveArrangement {
+    let template = defaults.first { $0.kinds.contains { $0.identifier == kind } }
+    let templateKinds = template?.kinds.map(\.identifier) ?? [kind]
+
+    // The first of the new kind's default companions that already has a
+    // group is its anchor: the new kind tabs into that group beside the
+    // anchor, and nothing already placed moves. A kind with a frame saved
+    // before groups existed keeps that placement, opening on its own.
+    if let anchor = templateKinds.first(where: { layout.index(ofGroupContaining: $0) != nil }),
+      let anchorIndex = layout.index(ofGroupContaining: anchor),
+      !hasLegacyFrame(for: kind)
+    {
+      let existing = layout.groups[anchorIndex].kinds
+      let position = templateKinds.firstIndex(of: kind) ?? 0
+      // Choose the group using the first saved companion, then place the
+      // new tab after its nearest preceding companion in that group.
+      // Saved tabs keep their order, including a person's custom order.
+      if let predecessor = templateKinds[..<position].reversed().first(where: { existing.contains($0) }),
+        let index = existing.firstIndex(of: predecessor)
+      {
+        return .joinGroup(index: anchorIndex, insertion: index + 1)
+      }
+      if let successor = templateKinds.dropFirst(position + 1).first(where: { existing.contains($0) }),
+        let index = existing.firstIndex(of: successor)
+      {
+        return .joinGroup(index: anchorIndex, insertion: index)
+      }
+      return .joinGroup(index: anchorIndex, insertion: existing.count)
+    }
+
+    return .newGroup(kinds: prospectiveKinds(for: kind))
+  }
+
+  /// Whether a frame an earlier version saved under `kind`'s own autosave
+  /// name would place it, before any layout of our own exists.
+  private func hasLegacyFrame(for kind: String) -> Bool {
+    guard consultsLegacyFrames else { return false }
+
+    let name = palettes[kind]?.palette?.definition.frameAutosaveName
+      ?? PalettePanel.defaultFrameAutosavePrefix + kind
+    return legacyFrame(name) != nil
   }
 
   // MARK: - Showing and closing
@@ -722,31 +778,41 @@ final class PaletteDock: NSObject {
       return index
     }
 
-    let template = defaults.first { $0.kinds.contains { $0.identifier == kind } }
-    let kinds = prospectiveKinds(for: kind)
-
-    var group = PaletteLayout.Group(id: UUID().uuidString, kinds: kinds)
-    group.selected = kinds.first
-
-    // A default dock relation names a kind; its group may not exist yet.
-    // `creatingGroups` stops defaults that dock in a circle.
-    creatingGroups.insert(kind)
-    defer { creatingGroups.remove(kind) }
-    if case .docked(let below) = template?.placement, !kinds.contains(below.identifier),
-      !creatingGroups.contains(below.identifier)
-    {
-      let parentIndex = ensureGroupIndex(for: below.identifier)
-      group.dockedBelow = layout.groups[parentIndex].id
-    }
-
-    // The recursion above may have created this kind's group already.
-    if let index = layout.index(ofGroupContaining: kind) {
+    switch prospectiveArrangement(for: kind) {
+    case .joinGroup(let index, let insertion):
+      // A new kind whose default group names an already-placed kind tabs
+      // into that group beside the anchor; the group's own members, order
+      // and placement stay as they are.
+      layout.groups[index].kinds.insert(kind, at: min(insertion, layout.groups[index].kinds.count))
+      scheduleSave()
       return index
-    }
 
-    layout.groups.append(group)
-    scheduleSave()
-    return layout.groups.count - 1
+    case .newGroup(let kinds):
+      let template = defaults.first { $0.kinds.contains { $0.identifier == kind } }
+
+      var group = PaletteLayout.Group(id: UUID().uuidString, kinds: kinds)
+      group.selected = kinds.first
+
+      // A default dock relation names a kind; its group may not exist yet.
+      // `creatingGroups` stops defaults that dock in a circle.
+      creatingGroups.insert(kind)
+      defer { creatingGroups.remove(kind) }
+      if case .docked(let below) = template?.placement, !kinds.contains(below.identifier),
+        !creatingGroups.contains(below.identifier)
+      {
+        let parentIndex = ensureGroupIndex(for: below.identifier)
+        group.dockedBelow = layout.groups[parentIndex].id
+      }
+
+      // The recursion above may have created this kind's group already.
+      if let index = layout.index(ofGroupContaining: kind) {
+        return index
+      }
+
+      layout.groups.append(group)
+      scheduleSave()
+      return layout.groups.count - 1
+    }
   }
 
   /// Moves `kind` from the group at `index` into a new group of its own,
@@ -1371,6 +1437,16 @@ private struct WeakPalette {
   init(_ palette: Palette) {
     self.palette = palette
   }
+}
+
+/// Where a kind with no group yet will live, as decided by the dock's
+/// `prospectiveArrangement(for:)`: a tab in an existing group, or a new
+/// group seeded from the kind's default template.
+private enum ProspectiveArrangement {
+  /// A tab in the group at `index`, inserted at `insertion`.
+  case joinGroup(index: Int, insertion: Int)
+  /// A new group starting with `kinds`.
+  case newGroup(kinds: [String])
 }
 
 /// A menu item running a closure; the item keeps its target alive.
