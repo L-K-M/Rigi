@@ -106,7 +106,9 @@ Observe `Palette.presentationDidChangeNotification` to synchronize chooser state
 Declare default groups before showing palettes. Each group lists the kinds that
 share a panel, in tab order, and where the panel first opens. The person's own
 arrangement, saved under `Rigi.paletteLayout` in the application's defaults,
-wins for every kind it holds.
+wins for every kind it holds. A kind the defaults add to a group whose other
+kinds already have one joins the first of them, in default order, as a tab
+beside it, without moving anything already placed.
 
 ```swift
 PaletteCenter.shared.setDefaultLayout([

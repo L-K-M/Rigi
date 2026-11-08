@@ -140,6 +140,10 @@ showing one palette shows its plain centered title instead.
   switching; the height is the shown palette's own. The panel is resizable
   while a resizable palette shows.
 - A palette remembers its group while closed and reopens as a tab there.
+- A kind the defaults place in a group whose kinds already have one joins the
+  first of them, in default order, as a tab beside it; the group's own
+  members, order, place and docking stay as the person left them. A kind with
+  a frame saved before groups existed still opens where that frame puts it.
 - `PaletteCenter.hideAll(except:)` takes panels off screen without closing any
   palette, for an application's Tab key; `restoreAll()` brings them back.
 - The arrangement persists in the application's defaults.
