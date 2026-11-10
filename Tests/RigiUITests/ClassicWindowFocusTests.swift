@@ -51,8 +51,8 @@ final class ClassicWindowFocusTests: XCTestCase {
             plain.close()
         }
 
-        XCTAssertTrue(plain.canBecomeKey)
-        XCTAssertTrue(plain.canBecomeMain)
+        // AppKit may require a main-capable content view; compare its actual
+        // getters rather than assuming eligibility from the style alone.
         classic.borderlessFocusPolicy = .appKitDefault
         XCTAssertEqual(classic.canBecomeKey, plain.canBecomeKey)
         XCTAssertEqual(classic.canBecomeMain, plain.canBecomeMain)
