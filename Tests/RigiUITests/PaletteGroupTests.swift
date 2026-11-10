@@ -752,6 +752,42 @@ final class PaletteGroupTests: XCTestCase {
     }
   }
 
+  func testGrowingGroupKeepsAnIntentionallyOffscreenSavedPosition() throws {
+    _ = NSApplication.shared
+    let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+    let oldContent = NSSize(width: 240, height: 300)
+    let oldSize = PalettePanel.panelSize(forContentSize: oldContent)
+    var saved = PaletteLayout.Group(id: "saved", kinds: ["a"])
+    saved.frame = NSRect(
+      x: visible.maxX - 80, y: visible.maxY - 8 - oldSize.height,
+      width: oldSize.width, height: oldSize.height)
+    let dock = PaletteDock(
+      store: .memory(PaletteLayout(groups: [saved])), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")], placement: .topTrailing)])
+    let (a, _) = makePalette(
+      "a", title: "Existing", dock: dock,
+      sizing: .resizable(minimumContentSize: NSSize(width: 200, height: 160)),
+      contentSize: oldContent)
+    a.showPanel()
+    drainRunLoop()
+    let panel = try XCTUnwrap(a.hostingPanel)
+    let before = panel.frame
+    XCTAssertGreaterThan(before.maxX, visible.maxX, "The saved body intentionally extends off screen")
+    XCTAssertTrue(Self.titleBarIsOnScreen(before), "Its title bar remains accessible")
+
+    let (b, _) = makePalette(
+      "b", title: "Wider", dock: dock,
+      sizing: .resizable(minimumContentSize: NSSize(width: 310, height: 430)),
+      contentSize: NSSize(width: 330, height: 460))
+    b.showPanel()
+
+    XCTAssertIdentical(b.hostingPanel, panel)
+    XCTAssertEqual(panel.frame.minX, before.minX, accuracy: 0.01, "Growth preserves an intentional partial placement")
+    XCTAssertEqual(panel.frame.maxY, before.maxY, accuracy: 0.01)
+    XCTAssertGreaterThanOrEqual(PalettePanel.contentSize(forPanelSize: panel.frame.size).width, 310)
+    XCTAssertEqual(dock.members(of: kind("a")), [kind("a"), kind("b")])
+  }
+
   func testANewKindWhoseDefaultNamesAPlacedKindTabsIntoThatGroup() throws {
     let saved = PaletteLayout.Group(id: "main", kinds: ["a", "b"])
     let store = PaletteLayoutStore.memory(PaletteLayout(groups: [saved]))

@@ -145,6 +145,10 @@ showing one palette shows its plain centered title instead.
   its nearest template companion without reordering saved tabs; the group's
   place and docking stay as the person left them. A kind with
   a frame saved before groups existed still opens where that frame puts it.
+  If an undocked panel that fitted horizontally grows beyond its screen,
+  it keeps its old trailing edge where possible, moving no farther left than
+  the screen edge. Its top and content size stay intact. Growth that still
+  fits, intentional partial placements and docked alignment stay unchanged.
 - `PaletteCenter.hideAll(except:)` takes panels off screen without closing any
   palette, for an application's Tab key; `restoreAll()` brings them back.
 - The arrangement persists in the application's defaults.
