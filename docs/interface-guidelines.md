@@ -31,6 +31,19 @@ Run `swift run RigiGallery` for the executable examples.
 - `ClassicWindow` retains Lucerne's classic silhouette through AppKit's private
   `_cornerMask` hook. It falls back to system corners if that hook stops being
   used. Layout and interaction must never depend on that cosmetic hook.
+- Borderless document focus is opt-in: `ClassicWindow.borderlessFocusPolicy`
+  defaults to `.appKitDefault` for every style. Set `.document` for a document
+  host without `.titled` to allow both key and main-window eligibility.
+  Modifiers such as `.closable` and `.resizable` remain supported; titled
+  windows always retain AppKit's getters. The policy never orders, activates
+  or resigns a window. The application owns those transitions and the window's
+  lifetime; palette behavior is unchanged.
+
+  ```swift
+  let window = ClassicWindow(contentRect: frame, styleMask: [.borderless, .closable],
+                             backing: .buffered, defer: false)
+  window.borderlessFocusPolicy = .document
+  ```
 
 ## Dimensions and grouping
 
