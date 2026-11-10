@@ -916,6 +916,9 @@ final class PaletteDock: NSObject {
     }
 
     let record = layout.groups[index]
+    // Embedding content/applying minimum sizes can resize the panel before
+    // placement. Keep saved geometry even before its panel exists.
+    let previousFrame = panels[id]?.panel.frame ?? record.frame ?? legacyFrame(of: record)
     let contentSize = Self.contentSize(of: record, tabs: tabs, selected: selected)
     let isNew = panels[id] == nil
     let groupPanel = panels[id] ?? makePanel(id, title: selected.definition.title, contentSize: contentSize)
@@ -949,15 +952,17 @@ final class PaletteDock: NSObject {
       topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
     }
 
-    setFrame(
-      id,
-      NSRect(
-        x: topLeft.x,
-        y: topLeft.y - panelSize.height,
-        width: panelSize.width,
-        height: panelSize.height
-      )
+    var frame = NSRect(
+      x: topLeft.x,
+      y: topLeft.y - panelSize.height,
+      width: panelSize.width,
+      height: panelSize.height
     )
+    if requestedTopLeft == nil, record.dockedBelow == nil, let previousFrame {
+      frame = Self.frameAfterWidthGrowth(
+        frame, from: previousFrame, within: NSScreen.screens.map(\.visibleFrame))
+    }
+    setFrame(id, frame)
 
     positionDocked(id)
     layoutColumn(below: id)
@@ -1034,6 +1039,26 @@ final class PaletteDock: NSObject {
   }
 
   // MARK: - Placement
+
+  /// Growth must not push a previously fitting top-level panel off its screen.
+  /// Keep the old trailing edge where possible; saved partial placements and
+  /// fitting growth retain their leading edge. Height/content size stay intact.
+  private static func frameAfterWidthGrowth(
+    _ proposed: NSRect, from previous: NSRect, within screens: [NSRect]
+  ) -> NSRect {
+    guard proposed.width > previous.width,
+      let visible = screens.first(where: {
+        previous.minX >= $0.minX && previous.maxX <= $0.maxX
+          && Self.titleBar(of: previous).intersects($0)
+      }),
+      proposed.minX < visible.minX || proposed.maxX > visible.maxX
+    else { return proposed }
+
+    var placed = proposed
+    placed.origin.x = max(visible.minX, previous.maxX - proposed.width)
+    placed.origin.y = previous.maxY - proposed.height
+    return placed
+  }
 
   private static func titleBar(of frame: NSRect) -> NSRect {
     NSRect(

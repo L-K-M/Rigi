@@ -701,6 +701,93 @@ final class PaletteGroupTests: XCTestCase {
 
   // MARK: - A new kind joining its default anchor's group
 
+  func testGrowingSavedGroupStaysHorizontallyOnScreen() throws {
+    _ = NSApplication.shared
+    let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+    let oldContent = NSSize(width: 240, height: 300)
+    let oldSize = PalettePanel.panelSize(forContentSize: oldContent)
+    let margin: CGFloat = 8
+    let placements: [(name: String, x: CGFloat)] = [
+      ("near right edge", visible.maxX - margin - oldSize.width),
+      ("already fitting", visible.minX + 20),
+    ]
+
+    for placement in placements {
+      var saved = PaletteLayout.Group(id: "saved", kinds: ["a"])
+      saved.frame = NSRect(
+        x: placement.x, y: visible.maxY - margin - oldSize.height,
+        width: oldSize.width, height: oldSize.height)
+      let dock = PaletteDock(
+        store: .memory(PaletteLayout(groups: [saved])), legacyFrame: { _ in nil })
+      dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")], placement: .topTrailing)])
+      let (a, _) = makePalette(
+        "a", title: "Existing", dock: dock,
+        sizing: .resizable(minimumContentSize: NSSize(width: 200, height: 160)),
+        contentSize: oldContent)
+      a.showPanel()
+      drainRunLoop()
+      let panel = try XCTUnwrap(a.hostingPanel)
+      let before = panel.frame
+      XCTAssertTrue(visible.contains(before), "The saved \(placement.name) fixture starts entirely on screen")
+
+      let (b, _) = makePalette(
+        "b", title: "Wider", dock: dock,
+        sizing: .resizable(minimumContentSize: NSSize(width: 310, height: 430)),
+        contentSize: NSSize(width: 330, height: 460))
+      b.showPanel()
+
+      XCTAssertIdentical(b.hostingPanel, panel)
+      XCTAssertEqual(dock.layout.groups.count, 1)
+      XCTAssertEqual(dock.groupID(of: b), "saved")
+      XCTAssertEqual(dock.members(of: kind("a")), [kind("a"), kind("b")])
+      XCTAssertEqual(panel.chrome.tabTitles, ["Existing", "Wider"])
+      XCTAssertEqual(dock.layout.groups[0].selected, "b")
+      XCTAssertGreaterThanOrEqual(PalettePanel.contentSize(forPanelSize: panel.frame.size).width, 310)
+      XCTAssertEqual(panel.frame.maxY, before.maxY, accuracy: 0.01, "Growth keeps the saved top edge")
+      XCTAssertGreaterThanOrEqual(panel.frame.minX, visible.minX, "\(placement.name): growth stays past the left screen edge")
+      XCTAssertLessThanOrEqual(panel.frame.maxX, visible.maxX, "\(placement.name): the wider body stays inside the right screen edge")
+      if placement.name == "already fitting" {
+        XCTAssertEqual(panel.frame.minX, before.minX, accuracy: 0.01, "Fitting growth keeps the person's saved leading edge")
+      }
+    }
+  }
+
+  func testGrowingGroupKeepsAnIntentionallyOffscreenSavedPosition() throws {
+    _ = NSApplication.shared
+    let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+    let oldContent = NSSize(width: 240, height: 300)
+    let oldSize = PalettePanel.panelSize(forContentSize: oldContent)
+    var saved = PaletteLayout.Group(id: "saved", kinds: ["a"])
+    saved.frame = NSRect(
+      x: visible.maxX - 80, y: visible.maxY - 8 - oldSize.height,
+      width: oldSize.width, height: oldSize.height)
+    let dock = PaletteDock(
+      store: .memory(PaletteLayout(groups: [saved])), legacyFrame: { _ in nil })
+    dock.setDefaults([PaletteGroupDefault([kind("a"), kind("b")], placement: .topTrailing)])
+    let (a, _) = makePalette(
+      "a", title: "Existing", dock: dock,
+      sizing: .resizable(minimumContentSize: NSSize(width: 200, height: 160)),
+      contentSize: oldContent)
+    a.showPanel()
+    drainRunLoop()
+    let panel = try XCTUnwrap(a.hostingPanel)
+    let before = panel.frame
+    XCTAssertGreaterThan(before.maxX, visible.maxX, "The saved body intentionally extends off screen")
+    XCTAssertTrue(Self.titleBarIsOnScreen(before), "Its title bar remains accessible")
+
+    let (b, _) = makePalette(
+      "b", title: "Wider", dock: dock,
+      sizing: .resizable(minimumContentSize: NSSize(width: 310, height: 430)),
+      contentSize: NSSize(width: 330, height: 460))
+    b.showPanel()
+
+    XCTAssertIdentical(b.hostingPanel, panel)
+    XCTAssertEqual(panel.frame.minX, before.minX, accuracy: 0.01, "Growth preserves an intentional partial placement")
+    XCTAssertEqual(panel.frame.maxY, before.maxY, accuracy: 0.01)
+    XCTAssertGreaterThanOrEqual(PalettePanel.contentSize(forPanelSize: panel.frame.size).width, 310)
+    XCTAssertEqual(dock.members(of: kind("a")), [kind("a"), kind("b")])
+  }
+
   func testANewKindWhoseDefaultNamesAPlacedKindTabsIntoThatGroup() throws {
     let saved = PaletteLayout.Group(id: "main", kinds: ["a", "b"])
     let store = PaletteLayoutStore.memory(PaletteLayout(groups: [saved]))
@@ -975,7 +1062,8 @@ final class PaletteGroupTests: XCTestCase {
     _ identifier: String,
     title: String,
     dock: PaletteDock,
-    sizing: PaletteSizing = .fixed
+    sizing: PaletteSizing = .fixed,
+    contentSize: NSSize? = nil
   ) -> (Palette, GroupTestContentLog) {
     _ = NSApplication.shared
     let log = GroupTestContentLog()
@@ -983,7 +1071,7 @@ final class PaletteGroupTests: XCTestCase {
       definition: PaletteDefinition(
         kind: kind(identifier),
         title: title,
-        contentSize: Self.contentSize,
+        contentSize: contentSize ?? Self.contentSize,
         sizing: sizing
       ),
       target: { NSObject() },
