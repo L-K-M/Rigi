@@ -953,6 +953,32 @@ public final class ClassicInsetBox: NSView, ClassicChromeDrawing {
 /// on it.
 public final class ClassicWindow: NSWindow {
 
+    /// Keyboard and main-window eligibility for a window without `.titled`.
+    /// Titled windows always retain AppKit's behavior.
+    public enum BorderlessFocusPolicy: Equatable {
+        case appKitDefault
+        case document
+    }
+
+    /// Opt in only for a borderless document host that must receive keyboard
+    /// input and own document menu commands. This changes eligibility only;
+    /// the application still owns ordering, activation and focus transitions.
+    public var borderlessFocusPolicy: BorderlessFocusPolicy = .appKitDefault
+
+    public override var canBecomeKey: Bool {
+        permitsBorderlessDocumentFocus || super.canBecomeKey
+    }
+
+    public override var canBecomeMain: Bool {
+        permitsBorderlessDocumentFocus || super.canBecomeMain
+    }
+
+    private var permitsBorderlessDocumentFocus: Bool {
+        // `.borderless` is zero; use absence of `.titled` so modifiers such
+        // as `.closable` remain available to a borderless document host.
+        borderlessFocusPolicy == .document && !styleMask.contains(.titled)
+    }
+
     public override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask,
                          backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
         super.init(contentRect: contentRect, styleMask: style,

@@ -166,6 +166,25 @@ enum GallerySmokeTest {
         statusBar.hideProgress()
         check(!statusBar.isShowingProgress, "status bar progress hidden")
 
+        // Borderless focus is opt-in through the public API. Keeping .closable
+        // is supported without a title bar; no window is ordered or activated.
+        let borderless = ClassicWindow(contentRect: NSRect(x: 0, y: 0, width: 240, height: 160),
+                                       styleMask: [.borderless], backing: .buffered, defer: false)
+        borderless.isReleasedWhenClosed = false
+        check(!borderless.canBecomeKey, "borderless defaults to non-key")
+        check(!borderless.canBecomeMain, "borderless defaults to non-main")
+        borderless.borderlessFocusPolicy = .document
+        check(borderless.canBecomeKey, "document borderless can become key")
+        check(borderless.canBecomeMain, "document borderless can become main")
+        borderless.borderlessFocusPolicy = .appKitDefault
+        check(!borderless.canBecomeKey, "borderless toggles back to non-key")
+        check(!borderless.canBecomeMain, "borderless toggles back to non-main")
+        borderless.styleMask = [.borderless, .closable]
+        borderless.borderlessFocusPolicy = .document
+        check(borderless.canBecomeKey, "closable borderless document can become key")
+        check(borderless.canBecomeMain, "closable borderless document can become main")
+        borderless.close()
+
         // The inspector's value slider follows the zoom; the swatches' button
         // bar adds an ink.
         controller.inspectorPalette.bringToFront()
