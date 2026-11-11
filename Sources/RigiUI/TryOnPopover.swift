@@ -34,6 +34,10 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     public enum Outcome { case commit, cancel }
 
     private let list: PickerListView
+    /// Reduce Motion source, read at each presentation and while the popover
+    /// is open. Never cached at launch; the default is the live workspace
+    /// setting.
+    private let reduceMotion: @MainActor () -> Bool
     private var popover: NSPopover?
     private var palette: TearOffPalette?
     private weak var anchor: NSView?
@@ -45,7 +49,17 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     private var finished = false
     private var detachRequested = false
 
-    public init(hint: String) {
+    public convenience init(hint: String) {
+        self.init(hint: hint, reduceMotion: {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        })
+    }
+
+    /// `reduceMotion` is the per-instance Reduce Motion source. Tests inject
+    /// a forced value through this internal initializer; the default reads
+    /// the live workspace setting on every call.
+    init(hint: String, reduceMotion: @escaping @MainActor () -> Bool) {
+        self.reduceMotion = reduceMotion
         list = PickerListView(hint: hint)
         super.init()
         list.onPick = { [weak self] item in self?.onPreview?(item) }

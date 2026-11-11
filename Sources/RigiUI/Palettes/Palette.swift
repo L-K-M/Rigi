@@ -52,6 +52,10 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
   private let makeContent: @MainActor () -> AnyPaletteContent
   private let dock: PaletteDock
 
+  /// Reduce Motion source, read at each presentation and while a popover is
+  /// open. Never cached at launch; the default is the live workspace setting.
+  private let reduceMotion: @MainActor () -> Bool
+
   private var popover: NSPopover?
   private var popoverContent: AnyPaletteContent?
   private var panelContent: AnyPaletteContent?
@@ -60,11 +64,18 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
 
   /// A palette made outside ``PaletteCenter`` gets a dock of its own that
   /// keeps its layout in memory.
+  ///
+  /// `reduceMotion` is the per-instance Reduce Motion source. Tests inject a
+  /// forced value through this internal initializer; the default reads the
+  /// live workspace setting on every call.
   init<Content: PaletteContent>(
     definition: PaletteDefinition,
     target: @escaping @MainActor () -> Content.Target?,
     makeContent: @escaping @MainActor () -> Content,
-    dock: PaletteDock? = nil
+    dock: PaletteDock? = nil,
+    reduceMotion: @escaping @MainActor () -> Bool = {
+      NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
   ) {
     kind = definition.kind
     self.definition = definition
@@ -72,6 +83,7 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
       AnyPaletteContent(content: makeContent(), target: target)
     }
     self.dock = dock ?? PaletteDock(store: .memory())
+    self.reduceMotion = reduceMotion
 
     super.init()
 
