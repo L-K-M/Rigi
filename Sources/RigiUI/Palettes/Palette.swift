@@ -27,6 +27,7 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
   private enum PopoverFollowUp: Equatable {
     case closePanel
     case showPanel
+    case focusPanel
   }
 
   let definition: PaletteDefinition
@@ -147,6 +148,19 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
     showPanelNow()
   }
 
+  /// Opens or raises this palette for explicit keyboard access. Its panel
+  /// becomes key while the document remains main; the content's preferred
+  /// responder is selected when possible, otherwise AppKit enters its key loop.
+  public func focusPanel() {
+    if popover != nil {
+      popoverFollowUp = .focusPanel
+      popover?.close()
+      return
+    }
+
+    focusPanelNow()
+  }
+
   /// Raises the floating form, selecting its tab and expanding its group.
   public func bringToFront() {
     guard presentation == .panel else { return }
@@ -218,6 +232,8 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
       completeDetachment()
       if followUp == .closePanel {
         closePanel()
+      } else if followUp == .focusPanel {
+        focusPanelNow()
       }
       return
     }
@@ -230,6 +246,8 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
       closePanel()
     case .showPanel:
       showPanelNow()
+    case .focusPanel:
+      focusPanelNow()
     case nil:
       break
     }
@@ -267,6 +285,16 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
     }
 
     dock.show(self)
+  }
+
+  private func focusPanelNow() {
+    showPanelNow()
+    guard let content = panelContent, let panel = dock.panel(showing: self) else { return }
+    panel.makeKeyAndOrderFront(nil)
+    panel.recalculateKeyViewLoop()
+    if !focusInitialResponder(in: content) {
+      panel.selectNextKeyView(nil)
+    }
   }
 
   private func prepareDetachment() -> NSWindow {
@@ -349,11 +377,13 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
     return detachmentPrepared && (reasonIsDetach || dock.isShowingPanel(self))
   }
 
-  private func focusInitialResponder(in content: AnyPaletteContent) {
-    guard let responder = content.preferredFirstResponder else { return }
-    guard responder.window === content.viewController.view.window else { return }
+  @discardableResult
+  private func focusInitialResponder(in content: AnyPaletteContent) -> Bool {
+    guard let responder = content.preferredFirstResponder,
+          let window = content.viewController.view.window,
+          responder.window === window else { return false }
 
-    responder.window?.makeFirstResponder(responder)
+    return window.makeFirstResponder(responder)
   }
 
   private func transition(to newPresentation: PalettePresentation?) {

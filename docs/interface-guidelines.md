@@ -187,6 +187,8 @@ showing one palette shows its plain centered title instead.
    becomes inert according to the application's adapter.
 6. Ordinary palette clicks preserve document focus. A text/search field can
    become key when typing requires it. Palettes hide when the app deactivates.
+   Explicit Window menu or keyboard commands use `Palette.focusPanel()` to
+   enter the panel's keyboard controls while the document remains main.
 7. Closing a floating palette restores ordinary chooser presentation. Preserve
    established frame autosave names during migrations: a frame saved under one
    places the palette's group the first time, before a layout exists.

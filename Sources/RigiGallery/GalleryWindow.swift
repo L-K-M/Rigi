@@ -295,11 +295,11 @@ final class GalleryController: NSObject, NSWindowDelegate {
     // MARK: Window menu (reached through the window delegate)
 
     @objc func showTools(_ sender: Any?) {
-        toolsPalette.isPresented ? toolsPalette.bringToFront() : toolsPalette.showPanel()
+        toolsPalette.focusPanel()
     }
 
     @objc func showSwatches(_ sender: Any?) {
-        swatchesPalette.isPresented ? swatchesPalette.bringToFront() : swatchesPalette.showPanel()
+        swatchesPalette.focusPanel()
     }
 
     @objc func togglePalettes(_ sender: Any?) {
