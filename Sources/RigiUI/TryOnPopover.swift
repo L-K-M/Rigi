@@ -72,6 +72,26 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+
+    /// While the popover is open, a Reduce Motion change re-reads the
+    /// preference and applies it to the open popover's `animates`, so the
+    /// close or tear-off animates per the current setting. AppKit posts
+    /// display-option changes on the workspace's own notification center.
+    @objc private func reduceMotionDidChange(_ note: Notification) {
+        popover?.animates = !reduceMotion()
+    }
+
+    private func installReduceMotionObserver() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(reduceMotionDidChange(_:)),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+    }
+
+    private func removeReduceMotionObserver() {
+        NSWorkspace.shared.notificationCenter.removeObserver(
+            self, name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     }
 
     /// A scheme change reaches an open popover through its appearance and a
@@ -119,6 +139,8 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
 
         let pop = NSPopover()
         pop.behavior = .transient    // .transient + popoverShouldDetach → draggable tear-off
+        // The preference is read at each opening, not cached at launch.
+        pop.animates = !reduceMotion()
         pop.appearance = ClassicChrome.schemeAppearance
         let controller = NSViewController()
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 400))
@@ -135,6 +157,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         pop.contentSize = NSSize(width: 280, height: 400)
         pop.delegate = self
         popover = pop
+        installReduceMotionObserver()
         pop.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
 
         list.select(id: currentID)
@@ -209,6 +232,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     }
 
     private func teardown() {
+        removeReduceMotionObserver()
         detachRequested = false
         popover = nil
         palette = nil

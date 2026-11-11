@@ -96,6 +96,28 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
 
   deinit {
     NotificationCenter.default.removeObserver(self)
+    NSWorkspace.shared.notificationCenter.removeObserver(self)
+  }
+
+  /// While the popover is open, a Reduce Motion change re-reads the
+  /// preference and applies it to the open popover's `animates`, so the
+  /// close or tear-off animates per the current setting. AppKit posts
+  /// display-option changes on the workspace's own notification center.
+  @objc private func reduceMotionDidChange(_ note: Notification) {
+    popover?.animates = !reduceMotion()
+  }
+
+  private func installReduceMotionObserver() {
+    NSWorkspace.shared.notificationCenter.addObserver(
+      self, selector: #selector(reduceMotionDidChange(_:)),
+      name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
+    )
+  }
+
+  private func removeReduceMotionObserver() {
+    NSWorkspace.shared.notificationCenter.removeObserver(
+      self, name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
+    )
   }
 
   /// A scheme change reaches an open popover through its appearance and a
@@ -128,7 +150,8 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
 
     let popover = NSPopover()
     popover.behavior = .transient
-    popover.animates = true
+    // The preference is read at each opening, not cached at launch.
+    popover.animates = !reduceMotion()
     popover.appearance = ClassicChrome.schemeAppearance
     // Attaching a content view controller re-derives the popover's size from
     // it, so the requested size is applied afterwards and wins either way.
@@ -138,6 +161,7 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
 
     self.popover = popover
     popoverContent = content
+    installReduceMotionObserver()
     popover.show(relativeTo: positioningRect, of: anchor, preferredEdge: preferredEdge)
 
     transition(to: .popover)
@@ -354,6 +378,7 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
   }
 
   private func dismissPopover() {
+    removeReduceMotionObserver()
     popoverContent?.dismissed(from: .popover)
     popoverContent?.releaseTarget()
     popover?.contentViewController = nil
