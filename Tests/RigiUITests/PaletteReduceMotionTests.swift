@@ -11,6 +11,32 @@ import XCTest
 final class PaletteReduceMotionTests: XCTestCase {
   private let contentSize = NSSize(width: 320, height: 240)
 
+  func testBackgroundDisplayNotificationUpdatesThePopoverOnMain() throws {
+    _ = NSApplication.shared
+    let (window, anchor) = try makeAnchorWindow()
+    defer { window.close() }
+    let preference = ReduceMotionPreference(false)
+    var readsWereOnMain = true
+    let palette = Palette(definition: makeDefinition(), target: { NSObject() },
+      makeContent: ReduceMotionTestContent.init, reduceMotion: {
+        readsWereOnMain = readsWereOnMain && Thread.isMainThread
+        return preference.value
+      })
+    defer { drainClose(palette) }
+    palette.present(from: anchor)
+    let popover = try XCTUnwrap(palette.presentedPopover)
+    preference.value = true
+    let delivered = expectation(description: "background display notification delivered")
+    let center = NSWorkspace.shared.notificationCenter
+    DispatchQueue.global().async {
+      center.post(name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+      delivered.fulfill()
+    }
+    wait(for: [delivered], timeout: 2)
+    XCTAssertFalse(popover.animates)
+    XCTAssertTrue(readsWereOnMain)
+  }
+
   func testEachOpeningReadsTheForcedPreferenceOnTheActualPopover() throws {
     _ = NSApplication.shared
     let (window, anchor) = try makeAnchorWindow()

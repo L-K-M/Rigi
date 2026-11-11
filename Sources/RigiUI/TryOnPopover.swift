@@ -39,6 +39,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     /// setting.
     private let reduceMotion: @MainActor () -> Bool
     private var popover: NSPopover?
+    private var reduceMotionObserver: NSObjectProtocol?
     private var palette: TearOffPalette?
     private weak var anchor: NSView?
     private weak var invokingWindow: NSWindow?
@@ -72,26 +73,30 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        if let reduceMotionObserver { NSWorkspace.shared.notificationCenter.removeObserver(reduceMotionObserver) }
     }
 
     /// While the popover is open, a Reduce Motion change re-reads the
     /// preference and applies it to the open popover's `animates`, so the
     /// close or tear-off animates per the current setting. AppKit posts
     /// display-option changes on the workspace's own notification center.
-    @objc private func reduceMotionDidChange(_ note: Notification) {
-        popover?.animates = !reduceMotion()
-    }
-
     private func installReduceMotionObserver() {
-        NSWorkspace.shared.notificationCenter.addObserver(
-            self, selector: #selector(reduceMotionDidChange(_:)),
-            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+        guard reduceMotionObserver == nil else { return }
+        reduceMotionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+          forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+          object: nil, queue: .main
+        ) { [weak self] _ in
+          MainActor.assumeIsolated {
+            guard let self else { return }
+            self.popover?.animates = !self.reduceMotion()
+          }
+        }
     }
 
     private func removeReduceMotionObserver() {
-        NSWorkspace.shared.notificationCenter.removeObserver(
-            self, name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+        guard let reduceMotionObserver else { return }
+        NSWorkspace.shared.notificationCenter.removeObserver(reduceMotionObserver)
+        self.reduceMotionObserver = nil
     }
 
     /// A scheme change reaches an open popover through its appearance and a

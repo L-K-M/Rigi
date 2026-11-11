@@ -8,6 +8,30 @@ import XCTest
 /// click-away, or tear-off outcomes.
 @MainActor
 final class TryOnReduceMotionTests: XCTestCase {
+    func testBackgroundDisplayNotificationUpdatesThePopoverOnMain() throws {
+        let (window, anchor) = makeAnchor()
+        defer { window.close() }
+        let preference = ReduceMotionPreference(false)
+        var readsWereOnMain = true
+        let picker = TryOnPopover(hint: "Preview", reduceMotion: {
+            readsWereOnMain = readsWereOnMain && Thread.isMainThread
+            return preference.value
+        })
+        present(picker, from: anchor, onFinish: { _ in })
+        let popover = try XCTUnwrap(picker.presentedPopover)
+        defer { popover.close(); drain(picker) }
+        preference.value = true
+        let delivered = expectation(description: "background display notification delivered")
+        let center = NSWorkspace.shared.notificationCenter
+        DispatchQueue.global().async {
+            center.post(name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+            delivered.fulfill()
+        }
+        wait(for: [delivered], timeout: 2)
+        XCTAssertFalse(popover.animates)
+        XCTAssertTrue(readsWereOnMain)
+    }
+
     func testEachOpeningReadsTheForcedPreferenceOnTheActualPopover() throws {
         let (window, anchor) = makeAnchor()
         defer { window.close() }
