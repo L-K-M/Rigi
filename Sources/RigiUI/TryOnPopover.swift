@@ -34,7 +34,12 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     public enum Outcome { case commit, cancel }
 
     private let list: PickerListView
+    /// Reduce Motion source, read at each presentation and while the popover
+    /// is open. Never cached at launch; the default is the live workspace
+    /// setting.
+    private let reduceMotion: @MainActor () -> Bool
     private var popover: NSPopover?
+    private var reduceMotionObserver: NSObjectProtocol?
     private var palette: TearOffPalette?
     private weak var anchor: NSView?
     private weak var invokingWindow: NSWindow?
@@ -45,7 +50,17 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     private var finished = false
     private var detachRequested = false
 
-    public init(hint: String) {
+    public convenience init(hint: String) {
+        self.init(hint: hint, reduceMotion: {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        })
+    }
+
+    /// `reduceMotion` is the per-instance Reduce Motion source. Tests inject
+    /// a forced value through this internal initializer; the default reads
+    /// the live workspace setting on every call.
+    init(hint: String, reduceMotion: @escaping @MainActor () -> Bool) {
+        self.reduceMotion = reduceMotion
         list = PickerListView(hint: hint)
         super.init()
         list.onPick = { [weak self] item in self?.onPreview?(item) }
@@ -58,6 +73,30 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        if let reduceMotionObserver { NSWorkspace.shared.notificationCenter.removeObserver(reduceMotionObserver) }
+    }
+
+    /// While the popover is open, a Reduce Motion change re-reads the
+    /// preference and applies it to the open popover's `animates`, so the
+    /// close or tear-off animates per the current setting. AppKit posts
+    /// display-option changes on the workspace's own notification center.
+    private func installReduceMotionObserver() {
+        guard reduceMotionObserver == nil else { return }
+        reduceMotionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+          forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+          object: nil, queue: .main
+        ) { [weak self] _ in
+          MainActor.assumeIsolated {
+            guard let self else { return }
+            self.popover?.animates = !self.reduceMotion()
+          }
+        }
+    }
+
+    private func removeReduceMotionObserver() {
+        guard let reduceMotionObserver else { return }
+        NSWorkspace.shared.notificationCenter.removeObserver(reduceMotionObserver)
+        self.reduceMotionObserver = nil
     }
 
     /// A scheme change reaches an open popover through its appearance and a
@@ -105,6 +144,8 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
 
         let pop = NSPopover()
         pop.behavior = .transient    // .transient + popoverShouldDetach → draggable tear-off
+        // The preference is read at each opening, not cached at launch.
+        pop.animates = !reduceMotion()
         pop.appearance = ClassicChrome.schemeAppearance
         let controller = NSViewController()
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 400))
@@ -121,6 +162,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
         pop.contentSize = NSSize(width: 280, height: 400)
         pop.delegate = self
         popover = pop
+        installReduceMotionObserver()
         pop.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
 
         list.select(id: currentID)
@@ -195,6 +237,7 @@ public final class TryOnPopover: NSObject, NSPopoverDelegate {
     }
 
     private func teardown() {
+        removeReduceMotionObserver()
         detachRequested = false
         popover = nil
         palette = nil

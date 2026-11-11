@@ -17,6 +17,14 @@ Run `swift run RigiGallery` for the executable examples.
   only — document and canvas content keeps the window's appearance.
   Increase Contrast strengthens chrome text and meaningful outlines in
   every scheme, classicLight included.
+- Popovers honor Reduce Motion: each opening reads
+  `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion` live (never a
+  cached launch value) and sets the actual `NSPopover.animates` to its
+  inverse. A change while a popover is open updates the open popover via
+  `NSWorkspace.accessibilityDisplayOptionsDidChangeNotification` on the
+  workspace's notification center, so close and tear-off animate per the
+  current setting. Preview, commit, detach, and focus outcomes are
+  unchanged.
 - Use `ClassicChrome` and the shared views instead of copying drawing constants
   into an application. A surface mutes when its document window is inactive.
   App-owned chrome drawn with these primitives, such as a ruler, conforms to
