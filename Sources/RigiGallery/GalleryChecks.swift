@@ -112,7 +112,7 @@ enum GallerySmokeTest {
 
         // The tool palette: a ClassicToolGrid and a ClassicColorPair that
         // shows the specimen's colors and reports swaps to the model.
-        controller.toolsPalette.showPanel()
+        controller.showTools(nil)
         settle()
         check(controller.toolsPalette.isFloating, "tools floating")
         let toolsView = NSApp.windows.first { $0.title == "Tools" && $0.isVisible }?.contentView

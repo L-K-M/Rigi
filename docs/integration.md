@@ -189,3 +189,14 @@ commands while sharing the same presentation and chrome as Sion.
 Pin reviewed package revisions. Update each application's pinned revision only
 after the library's native checks pass. Keep app integration tests with the app
 and shared presentation tests with Rigi.
+
+### Keyboard entry into floating palettes
+
+Call `palette.focusPanel()` from explicit Window menu or keyboard commands.
+It opens or raises the selected kind, makes its panel key, and selects
+`paletteInitialFirstResponder` when available, falling back to AppKit's key
+view loop. The panel stays a utility window and never becomes the main document.
+Automatic layout and ordinary raising keep using `showPanel()` and
+`bringToFront()`. A focus request during an attached popover closes that
+presentation before transferring keyboard entry; closing the palette cancels
+an unfinished request. The gallery's Window menu demonstrates this API.
