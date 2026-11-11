@@ -72,7 +72,39 @@ final class PaletteKeyboardFocusTests: XCTestCase {
     XCTAssertFalse(palette.isShowingPanel)
   }
 
-  private func makePalette(_ bodies: FocusBodies) -> Palette {
+  func testFocusSelectsTheRequestedGroupedTabDuringTheOpeningTurn() throws {
+    try exerciseGroupedOpening(collapsed: false)
+  }
+
+  func testFocusExpandsTheRequestedGroupDuringTheOpeningTurn() throws {
+    try exerciseGroupedOpening(collapsed: true)
+  }
+
+  private func exerciseGroupedOpening(collapsed: Bool) throws {
+    let dock = PaletteDock(store: .memory())
+    let firstBodies = FocusBodies()
+    let secondBodies = FocusBodies()
+    let first = makePalette(firstBodies, dock: dock)
+    let second = makePalette(secondBodies, dock: dock)
+    defer { close(second); close(first) }
+    dock.setDefaults([PaletteGroupDefault([first.kind, second.kind])])
+
+    // No event pumping: explicit focus must override the launch-time policy
+    // that preserves the selected tab during a batch of ordinary shows.
+    first.showPanel()
+    let group = try XCTUnwrap(dock.groupID(of: first))
+    if collapsed { dock.toggleCollapsed(group) }
+    second.focusPanel()
+
+    let body = try XCTUnwrap(secondBodies.items.last)
+    let panel = try XCTUnwrap(second.hostingPanel)
+    XCTAssertTrue(body.view.window === panel)
+    XCTAssertFalse(dock.isCollapsed(group))
+    XCTAssertTrue(isEditing(body.field, in: panel))
+    XCTAssertNil(firstBodies.items.last?.view.window)
+  }
+
+  private func makePalette(_ bodies: FocusBodies, dock: PaletteDock? = nil) -> Palette {
     _ = NSApplication.shared
     return Palette(
       definition: PaletteDefinition(kind: PaletteKind("tests.focus.\(UUID().uuidString)"),
@@ -82,7 +114,7 @@ final class PaletteKeyboardFocusTests: XCTestCase {
         let body = FocusBody()
         bodies.items.append(body)
         return body
-      })
+      }, dock: dock)
   }
 
   private func isEditing(_ field: NSTextField, in window: NSWindow) -> Bool {

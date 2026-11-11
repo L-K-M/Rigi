@@ -289,9 +289,12 @@ public final class Palette: NSObject, NSPopoverDelegate, TearOffPalette {
 
   private func focusPanelNow() {
     showPanelNow()
+    // Explicit focus overrides the opening turn's saved-tab policy and
+    // must also expand a collapsed group before entering its content.
+    dock.bringToFront(self)
     guard let content = panelContent, let panel = dock.panel(showing: self) else { return }
-    panel.makeKeyAndOrderFront(nil)
     panel.recalculateKeyViewLoop()
+    panel.makeKeyAndOrderFront(nil)
     if !focusInitialResponder(in: content) {
       panel.selectNextKeyView(nil)
     }
