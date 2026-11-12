@@ -4,6 +4,58 @@ import AppKit
 
 final class ClassicToolGridTests: XCTestCase {
 
+    func testPerToolAvailabilityPreservesGeometryAndRefusesUserPicks() throws {
+        let unavailable = ClassicToolGrid.Tool(id: "off", name: "Unavailable",
+            image: NSImage(size: NSSize(width: 16, height: 16)), isEnabled: false)
+        let otherUnavailable = ClassicToolGrid.Tool(id: "other", name: "Other unavailable",
+            image: NSImage(size: NSSize(width: 16, height: 16)), isEnabled: false)
+        let grid = ClassicToolGrid(slots: [.init(tools: [unavailable, tool("on")]),
+                                           .init(tools: [otherUnavailable])])
+        let target = ActionTarget(); grid.target = target; grid.action = #selector(ActionTarget.act(_:))
+        let size = grid.intrinsicContentSize
+        grid.selectTool(id: "off")
+        XCTAssertEqual(grid.selectedToolID, "off", "programmatic reflection remains allowed")
+        grid.select(0, inSlot: 0, sendsAction: true)
+        XCTAssertEqual(target.count, 0)
+        let cells = try XCTUnwrap(grid.accessibilityChildren() as? [NSAccessibilityElement])
+        XCTAssertFalse(cells[0].isAccessibilityEnabled())
+        XCTAssertFalse(cells[0].accessibilityPerformPress())
+        XCTAssertEqual(target.count, 0)
+        grid.cycleTool(inSlot: 0, sendsAction: true)
+        XCTAssertEqual(grid.selectedToolID, "on")
+        XCTAssertEqual(target.count, 1)
+        XCTAssertTrue(cells[0].isAccessibilityEnabled())
+        XCTAssertTrue(cells[0].accessibilityPerformPress())
+        XCTAssertEqual(target.count, 2)
+        grid.cycleTool(inSlot: 1, sendsAction: true)
+        XCTAssertEqual(grid.selectedToolID, "on")
+        XCTAssertEqual(target.count, 2, "an all-disabled group performs no action")
+        grid.isEnabled = false
+        XCTAssertFalse(cells[0].accessibilityPerformPress())
+        grid.select(1, inSlot: 0, sendsAction: true)
+        XCTAssertEqual(target.count, 2)
+        XCTAssertEqual(grid.intrinsicContentSize, size)
+    }
+
+    func testModelReplacementCancelsAnAcceptedMousePress() throws {
+        let grid = ClassicToolGrid(slots: [.init(tools: [tool("before")])])
+        grid.frame = NSRect(origin: .zero, size: grid.intrinsicContentSize)
+        let target = ActionTarget(); grid.target = target; grid.action = #selector(ActionTarget.act(_:))
+        func event(_ type: NSEvent.EventType) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type, location: NSPoint(x: 10, y: 10),
+                modifierFlags: [], timestamp: 1, windowNumber: 0, context: nil,
+                eventNumber: 0, clickCount: 1, pressure: 1))
+        }
+        grid.mouseDown(with: try event(.leftMouseDown))
+        grid.slots = [.init(tools: [tool("replacement")])]
+        grid.mouseUp(with: try event(.leftMouseUp))
+        XCTAssertEqual(target.count, 0, "old press must not select a replacement tool")
+        grid.mouseDown(with: try event(.leftMouseDown))
+        grid.mouseUp(with: try event(.leftMouseUp))
+        XCTAssertEqual(target.count, 1)
+        XCTAssertEqual(grid.selectedToolID, "replacement")
+    }
+
     /// Records target/action calls; the grid should fire once per user pick.
     private final class ActionTarget: NSObject {
         private(set) var count = 0
