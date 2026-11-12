@@ -118,12 +118,15 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
         public let name: String
         public let shortcut: String?
         public let image: NSImage
+        public let isEnabled: Bool
 
-        public init(id: String, name: String, shortcut: String? = nil, image: NSImage) {
+        public init(id: String, name: String, shortcut: String? = nil, image: NSImage,
+                    isEnabled: Bool = true) {
             self.id = id
             self.name = name
             self.shortcut = shortcut
             self.image = image
+            self.isEnabled = isEnabled
         }
     }
 
@@ -191,6 +194,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
 
     public override var isEnabled: Bool {
         didSet {
+            if !isEnabled { cancelTracking() }
             needsDisplay = true
             syncAccessibility()
         }
@@ -233,6 +237,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
         if sendsAction && !isEnabled { return }
         guard slots.indices.contains(slot),
               slots[slot].tools.indices.contains(toolIndex) else { return }
+        if sendsAction && !slots[slot].tools[toolIndex].isEnabled { return }
         gridLayout.setCurrentTool(toolIndex, forSlot: slot)
         selectedToolID = slots[slot].tools[toolIndex].id
         needsDisplay = true
@@ -245,9 +250,16 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
     }
 
     func cycleTool(inSlot slot: Int, sendsAction: Bool) {
-        guard slots.indices.contains(slot) else { return }
-        select(gridLayout.nextToolIndex(forSlot: slot, toolCount: slots[slot].tools.count),
-               inSlot: slot, sendsAction: sendsAction)
+        guard slots.indices.contains(slot), !slots[slot].tools.isEmpty else { return }
+        let tools = slots[slot].tools
+        let current = gridLayout.currentToolIndex(forSlot: slot)
+        for offset in 1...tools.count {
+            let next = (current + offset) % tools.count
+            if tools[next].isEnabled {
+                select(next, inSlot: slot, sendsAction: sendsAction)
+                return
+            }
+        }
     }
 
     private func slotIndex(containing id: String) -> Int? {
@@ -261,7 +273,8 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
     // MARK: Tracking
 
     public override func mouseDown(with event: NSEvent) {
-        guard isEnabled, let slot = slotIndex(for: event) else { return }
+        guard isEnabled, let slot = slotIndex(for: event),
+              slots[slot].tools.contains(where: \.isEnabled) else { return }
         // Option-click on a group cycles it: an instant pick, no press.
         if event.modifierFlags.contains(.option), slots[slot].isGroup {
             cycleTool(inSlot: slot, sendsAction: true)
@@ -319,10 +332,18 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
                                                selector: #selector(holdElapsed), object: nil)
     }
 
+    private func cancelTracking() {
+        cancelHold()
+        pressedSlot = nil
+        flyoutSlot = nil
+    }
+
     /// Runs the group's flyout under the cell; blocks until a choice or a
     /// dismissal. The cell stays pressed while the menu is up, and the menu
     /// tracks the still-held button so hold-and-slide and drag both work.
     private func openFlyout(for slot: Int) {
+        guard isEnabled, slots.indices.contains(slot),
+              slots[slot].tools.contains(where: \.isEnabled) else { return }
         let menu = NSMenu()
         menu.appearance = ClassicChrome.schemeAppearance
         menu.autoenablesItems = false
@@ -331,6 +352,8 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
                                   action: #selector(flyoutItemChosen(_:)), keyEquivalent: "")
             item.target = self
             item.tag = index
+            item.representedObject = tool.id
+            item.isEnabled = isEnabled && tool.isEnabled
             item.image = flyoutImage(for: tool)
             if index == gridLayout.currentToolIndex(forSlot: slot) { item.state = .on }
             if let shortcut = tool.shortcut {
@@ -350,8 +373,9 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
     }
 
     @objc private func flyoutItemChosen(_ sender: NSMenuItem) {
-        guard let slot = flyoutSlot else { return }
-        select(sender.tag, inSlot: slot, sendsAction: true)
+        guard let slot = flyoutSlot, let id = sender.representedObject as? String,
+              let index = toolIndex(id, inSlot: slot) else { return }
+        select(index, inSlot: slot, sendsAction: true)
     }
 
     private func flyoutImage(for tool: Tool) -> NSImage? {
@@ -394,6 +418,9 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
     }
 
     private func syncAfterModelChange() {
+        // A press or open flyout belongs to the old model. Do not reinterpret
+        // its slot/index when the application updates availability or tools.
+        cancelTracking()
         gridLayout.setSlotCount(slots.count)
         // A slot that now holds fewer tools shows its first one again, so
         // what it draws and what a click picks stay the same tool.
@@ -412,12 +439,11 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
     /// One cell of the grid for VoiceOver: a radio button reporting the shown
     /// tool, whose press selects it like a click.
     private final class CellAccessibilityElement: NSAccessibilityElement {
-        var onPress: (() -> Void)?
+        var onPress: (() -> Bool)?
 
         // A VoiceOver press is a user pick, like a click on the cell.
         override func accessibilityPerformPress() -> Bool {
-            onPress?()
-            return true
+            onPress?() ?? false
         }
     }
 
@@ -436,7 +462,11 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
                 let element = CellAccessibilityElement()
                 element.setAccessibilityParent(self)
                 element.setAccessibilityRole(.radioButton)
-                element.onPress = { [weak self] in self?.selectCurrentTool(inSlot: slot, sendsAction: true) }
+                element.onPress = { [weak self] in
+                    guard let self, self.isEnabled, self.currentTool(inSlot: slot)?.isEnabled == true else { return false }
+                    self.selectCurrentTool(inSlot: slot, sendsAction: true)
+                    return true
+                }
                 return element
             }
         }
@@ -444,7 +474,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
             element.setAccessibilityFrameInParentSpace(gridLayout.frame(forSlot: slot))
             let tool = currentTool(inSlot: slot)
             element.setAccessibilityLabel(tool?.name ?? "")
-            element.setAccessibilityEnabled(isEnabled)
+            element.setAccessibilityEnabled(isEnabled && tool?.isEnabled == true)
             element.setAccessibilityValue(NSNumber(value: tool != nil && tool?.id == selectedToolID))
         }
     }
@@ -462,6 +492,7 @@ public final class ClassicToolGrid: NSControl, NSViewToolTipOwner, ClassicChrome
 
     private func drawCell(_ slot: Int, in rect: CGRect, active: Bool) {
         let tool = currentTool(inSlot: slot)
+        let active = active && tool?.isEnabled == true
         let state: ClassicChrome.BezelState = pressedSlot == slot ? .pressed
             : (tool?.id == selectedToolID ? .on : .normal)
 

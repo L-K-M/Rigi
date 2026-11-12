@@ -97,6 +97,12 @@ Run `swift run RigiGallery` for the executable examples.
   and validates entered values before changing its model.
 - Use native checkboxes and text fields for inspector forms, particularly mixed
   selection states. Use `ClassicColorWell` for color selection.
+- `ClassicToolGrid.Tool.isEnabled` disables one tool without removing its slot.
+  The whole grid's `isEnabled` takes precedence. Unavailable tools stay dimmed,
+  refuse clicks and accessibility presses, and are skipped by group cycling;
+  flyout choices also disable. Apps may still reflect a selected unavailable
+  tool programmatically with `selectTool(id:)`. Replace slots when availability
+  changes; this cancels any old press or flyout choice instead of retargeting it.
 - `ClassicToolGrid` is a tool palette: 24 pt cells in columns, one selected
   tool, radio-group accessibility. A cell holding several tools is a group,
   marked by a corner triangle. Click picks the cell's current tool;

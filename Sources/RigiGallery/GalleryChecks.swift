@@ -120,6 +120,13 @@ enum GallerySmokeTest {
         let pair = toolsView.flatMap { firstDescendant(of: $0, as: ClassicColorPair.self) }
         check(grid?.slots.count == ToolsContent.slots.count, "tool grid slots")
         check(grid?.selectedToolID == "brush", "tool grid selection")
+        let unavailableTool = ClassicToolGrid.Tool(id: "unavailable", name: "Unavailable",
+            image: NSImage(size: NSSize(width: 16, height: 16)), isEnabled: false)
+        let availabilityGrid = ClassicToolGrid(slots: [.init(tools: [unavailableTool])])
+        let unavailableCell = availabilityGrid.accessibilityChildren()?.first as? NSAccessibilityElement
+        check(unavailableCell?.isAccessibilityEnabled() == false &&
+              unavailableCell?.accessibilityPerformPress() == false,
+              "per-tool availability is exposed to accessibility")
         check(pair?.foreground == controller.model.color, "color pair shows the ink")
         let ink = controller.model.color
         pair?.onSwap?()
